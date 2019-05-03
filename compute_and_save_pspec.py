@@ -27,7 +27,8 @@ osjoin = os.path.join
 from turbustat.statistics import PowerSpectrum
 
 # Running on SegFault w/ data on bigdata
-data_path = os.path.expanduser("~/bigdata/ekoch/Utomo19_LGdust/")
+# data_path = os.path.expanduser("~/bigdata/ekoch/Utomo19_LGdust/")
+data_path = os.path.expanduser("~/tycho/Utomo19_LGdust/")
 
 names = {'mips160': Beam(38.8 * u.arcsec),
          'mips24': Beam(6.5 * u.arcsec),
@@ -41,6 +42,11 @@ names = {'mips160': Beam(38.8 * u.arcsec),
 
 gals = ['LMC', 'SMC', 'M33', 'M31']
 
+# Run at original, aggressive convolution to Gaussian, and moderate
+# convolution to Gaussian
+
+res_types = ['orig', 'agg', 'mod']
+
 # dist_cuts = [5, 3, 12, 20] * u.kpc
 
 distances = [50.1 * u.kpc, 62.1 * u.kpc, 840 * u.kpc, 744 * u.kpc]
@@ -50,7 +56,7 @@ ncores = 6
 
 img_view = False
 
-skip_check = False
+skip_check = True
 
 for gal, dist in zip(gals, distances):
 
@@ -104,68 +110,74 @@ for gal, dist in zip(gals, distances):
 
         print("On {}".format(name))
 
-        filename = "{0}_{1}_mjysr.fits".format(gal.lower(), name)
+        for res_type in res_types:
 
-        # For the convolved maps, the scale changes so use glob
-        # filename = "{0}_{1}_gauss*.fits".format(gal.lower(), name)
-        # matches = glob(osjoin(data_path, gal, filename))
-        # if len(matches) == 0:
-        #     raise ValueError("Problem")
-        # filename = matches[1]
+            print("Resolution {}".format(res_type))
 
-        if not os.path.exists(osjoin(data_path, gal, filename)):
-            print("Could not find {}. Skipping".format(filename))
-            continue
+            if res_type == 'orig':
+                filename = "{0}_{1}_mjysr.fits".format(gal.lower(), name)
+            else:
+                filename = "{0}_{1}_{2}_mjysr.fits".format(gal.lower(), name, res_type)
 
-        hdu = fits.open(osjoin(data_path, gal, filename))
-        proj = Projection.from_hdu(fits.PrimaryHDU(hdu[0].data.squeeze(),
-                                                   hdu[0].header))
-        # Attach equiv Gaussian beam
-        proj = proj.with_beam(names[name])
+            if not os.path.exists(osjoin(data_path, gal, filename)):
+                print("Could not find {}. Skipping".format(filename))
+                continue
 
-        # Take minimal shape. Remove empty space.
-        # Erode edges to avoid noisier region/uneven scans
-        mask = np.isfinite(proj)
-        mask = nd.binary_erosion(mask, np.ones((3, 3)), iterations=8)
+            hdu = fits.open(osjoin(data_path, gal, filename))
+            proj = Projection.from_hdu(fits.PrimaryHDU(hdu[0].data.squeeze(),
+                                                       hdu[0].header))
+            # Attach equiv Gaussian beam
+            if res_type == 'orig':
+                proj = proj.with_beam(names[name])
+            # The convolved images should have all have a beam saved
 
-        # Add radial box cut
-        # radius = gal_cls.radius(header=proj.header).to(u.kpc)
-        # rad_mask = radius < cut
-        # mask = np.logical_and(mask, rad_mask)
+            # Take minimal shape. Remove empty space.
+            # Erode edges to avoid noisier region/uneven scans
+            mask = np.isfinite(proj)
+            mask = nd.binary_erosion(mask, np.ones((3, 3)), iterations=8)
 
-        # Pick out region determined from the column density map extents
-        # PLus some padding at the edge
-        spat_mask = spat_mask_maker(*proj.spatial_coordinate_map)
+            # Add radial box cut
+            # radius = gal_cls.radius(header=proj.header).to(u.kpc)
+            # rad_mask = radius < cut
+            # mask = np.logical_and(mask, rad_mask)
 
-        proj = proj[nd.find_objects(mask & spat_mask)[0]]
+            # Pick out region determined from the column density map extents
+            # PLus some padding at the edge
+            spat_mask = spat_mask_maker(*proj.spatial_coordinate_map)
 
-        # Save the cut-out, if it doesn't already exist
-        out_filename = "{}_cutout.fits".format(filename.rstrip(".fits"))
+            proj = proj[nd.find_objects(mask & spat_mask)[0]]
 
-        if not os.path.exists(osjoin(data_path, gal, out_filename)):
-            proj.write(osjoin(data_path, gal, out_filename))
+            # Save the cut-out, if it doesn't already exist
+            out_filename = "{}_cutout.fits".format(filename.rstrip(".fits"))
 
-        # look at each image.
-        if img_view:
-            proj.quicklook()
-            plt.draw()
-            input("{}".format(filename))
-            plt.close()
+            if not os.path.exists(osjoin(data_path, gal, out_filename)):
+                proj.write(osjoin(data_path, gal, out_filename))
 
-        save_name = "{0}_{1}_mjysr.pspec.pkl".format(gal.lower(), name)
+            # look at each image.
+            if img_view:
+                proj.quicklook()
+                plt.draw()
+                input("{}".format(filename))
+                plt.close()
 
-        # For now skip already saved power-spectra
-        if os.path.exists(osjoin(data_path, gal, save_name)) and skip_check:
-            print("Already saved pspec for {}. Skipping".format(filename))
-            continue
-        else:
-            os.system("rm -f {}".format(osjoin(data_path, gal, save_name)))
+            if res_type == 'orig':
+                save_name = "{0}_{1}_mjysr.pspec.pkl".format(gal.lower(), name)
+            else:
+                save_name = "{0}_{1}_{2}_mjysr.pspec.pkl".format(gal.lower(), name, res_type)
 
-        pspec = PowerSpectrum(proj, distance=dist)
-        pspec.run(verbose=False, beam_correct=False, fit_2D=False,
-                  high_cut=0.1 / u.pix,
-                  use_pyfftw=True, threads=ncores)
+            # For now skip already saved power-spectra
+            if os.path.exists(osjoin(data_path, gal, save_name)) and skip_check:
+                print("Already saved pspec for {}. Skipping".format(filename))
+                continue
+            else:
+                os.system("rm -f {}".format(osjoin(data_path, gal, save_name)))
 
-        pspec.save_results(osjoin(data_path, gal, save_name), keep_data=False)
+            pspec = PowerSpectrum(proj, distance=dist)
+            pspec.run(verbose=False, beam_correct=False, fit_2D=False,
+                      high_cut=0.1 / u.pix,
+                      use_pyfftw=True, threads=ncores)
 
-        del pspec, proj, hdu
+            pspec.save_results(osjoin(data_path, gal, save_name),
+                               keep_data=False)
+
+            del pspec, proj, hdu

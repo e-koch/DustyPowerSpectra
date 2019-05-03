@@ -1,98 +1,139 @@
 
 '''
-Fit power spectra to individual band images.
+Fit the LMC images with the maximum slice removing 30 Dor.
+
+Does the bump in the LMC at 24 um go away without 30 Dor?
 '''
+
 
 import os
 import numpy as np
+from astropy.io import fits
+from spectral_cube import Projection
 import astropy.units as u
 import matplotlib.pyplot as plt
 import seaborn as sb
-from scipy.optimize import curve_fit
-from radio_beam import Beam
+
 import pymc3 as pm
 import theano.tensor as T
 from scipy.interpolate import InterpolatedUnivariateSpline
+from scipy.optimize import curve_fit
 import pandas as pd
 
-make_interactive = False
-
-if not plt.isinteractive() and make_interactive:
-    plt.ion()
+from radio_beam import Beam
+from galaxies import Galaxy
 
 osjoin = os.path.join
 
 from turbustat.statistics import PowerSpectrum
 
+do_run_pspec = False
+do_fit_pspec = True
 
 # Running on SegFault w/ data on bigdata
 # data_path = os.path.expanduser("~/bigdata/ekoch/Utomo19_LGdust/")
 data_path = os.path.expanduser("~/tycho/Utomo19_LGdust/")
 
-names = {'mips24': Beam(6.5 * u.arcsec),
-         'mips70': Beam(18.7 * u.arcsec),
-         'pacs100': Beam(7.1 * u.arcsec),
-         'mips160': Beam(38.8 * u.arcsec),
-         'pacs160': Beam(11.2 * u.arcsec),
-         # # 'pacs70': Beam(5.8 * u.arcsec),
-         'spire250': Beam(18.2 * u.arcsec),
-         'spire350': Beam(25 * u.arcsec),
-         'spire500': Beam(36.4 * u.arcsec)}
+names = {'mips24': Beam(6.5 * u.arcsec)}
+name = 'mips24'
 
-gals = ['LMC', 'SMC', 'M33', 'M31']
+gal = 'LMC'
+dist = 50.1 * u.kpc
 
-# Run at original, aggressive convolution to Gaussian, and moderate
-# convolution to Gaussian
-
-# res_types = ['orig', 'agg', 'mod']
-res_types = ['orig', 'mod']
-
-
-distances = [50.1 * u.kpc, 62.1 * u.kpc, 840 * u.kpc, 744 * u.kpc]
-
-# Some images are large. Run fft in parallel
 ncores = 6
 
-img_view = False
+res_types = ['orig', 'mod']
+
+lmc_mips24_slice = {"30dor": (slice(2620, 9215), slice(218, 6135)),
+                    'no30dor': (slice(2160, 8755), slice(4580, 10497))}
 
 skip_check = False
 
-fit_results = {'logA': [], 'ind': [], 'logB': [],
-               'logA_std': [], 'ind_std': [], 'logB_std': []}
-row_names = []
+if do_run_pspec:
 
-for gal, dist in zip(gals, distances):
+    for res_type in res_types:
 
-    print("On {}".format(gal))
+        print("Resolution {}".format(res_type))
+
+        if res_type == 'orig':
+            filename = "{0}_{1}_mjysr_cutout.fits".format(gal.lower(), name)
+        else:
+            filename = "{0}_{1}_{2}_mjysr_cutout.fits".format(gal.lower(), name, res_type)
+
+        if not os.path.exists(osjoin(data_path, gal, filename)):
+            print("Could not find {}. Skipping".format(filename))
+            continue
+
+        hdu = fits.open(osjoin(data_path, gal, filename))
+        proj = Projection.from_hdu(fits.PrimaryHDU(hdu[0].data.squeeze(),
+                                                   hdu[0].header))
+        # Attach equiv Gaussian beam
+        # if res_type == 'orig':
+        #     proj = proj.with_beam(names[name])
+
+        # With and without 30 Dor
+        for slice_name in lmc_mips24_slice:
+
+            slicer = lmc_mips24_slice[slice_name]
+
+            if res_type == 'orig':
+                save_name = "{0}_{1}_{2}_mjysr.pspec.pkl".format(gal.lower(),
+                                                                 name, slice_name)
+            else:
+                save_name = "{0}_{1}_{2}_{3}_mjysr.pspec.pkl".format(gal.lower(),
+                                                                     name,
+                                                                     res_type,
+                                                                     slice_name)
+
+            # For now skip already saved power-spectra
+            if os.path.exists(osjoin(data_path, gal, save_name)) and skip_check:
+                print("Already saved pspec for {}. Skipping".format(filename))
+                continue
+            else:
+                os.system("rm -f {}".format(osjoin(data_path, gal, save_name)))
+
+            pspec = PowerSpectrum(proj[slicer], distance=dist)
+            pspec.run(verbose=False, beam_correct=False, fit_2D=False,
+                      high_cut=0.1 / u.pix,
+                      use_pyfftw=True, threads=ncores,
+                      apodize_kernel='tukey', alpha=0.3)
+
+            pspec.save_results(osjoin(data_path, gal, save_name),
+                               keep_data=False)
+
+
+if do_fit_pspec:
 
     # Make a plot output folder
     plot_folder = osjoin(data_path, "{}_plots".format(gal))
     if not os.path.exists(plot_folder):
         os.mkdir(plot_folder)
 
-    for name in names:
+    fit_results = {'logA': [], 'ind': [], 'logB': [],
+                   'logA_std': [], 'ind_std': [], 'logB_std': []}
+    row_names = []
 
-        print("On {}".format(name))
+    for res_type in res_types:
 
-        for res_type in res_types:
+        print("Resolution {}".format(res_type))
 
-            print("Resolution {}".format(res_type))
+        make_interactive = True
+
+        if make_interactive:
+            plt.ion()
+        else:
+            plt.ioff()
+
+        for slice_name in lmc_mips24_slice:
 
             if res_type == 'orig':
-                filename = "{0}_{1}_mjysr.pspec.pkl".format(gal.lower(), name)
+                filename = "{0}_{1}_{2}_mjysr.pspec.pkl".format(gal.lower(),
+                                                                name, slice_name)
             else:
-                filename = "{0}_{1}_{2}_mjysr.pspec.pkl".format(gal.lower(), name, res_type)
-
-            # For the convolved maps, the scale changes so use glob
-            # filename = "{0}_{1}_gauss*.fits".format(gal.lower(), name)
-            # matches = glob(osjoin(data_path, gal, filename))
-            # if len(matches) == 0:
-            #     raise ValueError("Problem")
-            # filename = matches[1]
-
-            if not os.path.exists(osjoin(data_path, gal, filename)):
-                print("Could not find {}. Skipping".format(filename))
-                continue
+                filename = "{0}_{1}_{2}_{3}_mjysr.pspec.pkl".format(gal.lower(),
+                                                                    name,
+                                                                    res_type,
+                                                                    slice_name)
 
             # Load pspec object
             pspec = PowerSpectrum.load_results(osjoin(data_path, gal, filename))
@@ -105,9 +146,7 @@ for gal, dist in zip(gals, distances):
             beam_gauss_width = beam_size / np.sqrt(8 * np.log(2))
 
             # Fit on scales > 3 pixels to avoid flattening from pixelization
-            # fit_mask = pspec.freqs.value < 1 / 3.
             fit_mask = pspec.freqs.value < (1 / (beam_gauss_width * 3.))
-            # fit_mask = pspec.freqs.value < 0.1
 
             # And cut out the largest scales due to expected deviations with
             # small stddev
@@ -139,7 +178,6 @@ for gal, dist in zip(gals, distances):
                 def beam_model(f):
 
                     beam_vals = np.empty_like(f)
-                    # beam_vals = T.zeros_like(f)
                     # if on scales larger than the kernel image, return
                     # value on largest scale
                     beam_vals[f < smallest_freq] = largest_val
@@ -155,74 +193,35 @@ for gal, dist in zip(gals, distances):
                     return T.exp(-f**2 * np.pi**2 * 4 * beam_gauss_width**2)
 
 
-            # def powerlaw_model_wbeam(f, logA, ind, frac):  # , logC=-3.):
-            #     return 10**logA * (frac * f**-ind + (1 - frac)) * \
-            #         beam_model(f)
-            #     # return (10**logA * f**-ind + 10**logB) * \
-            #     #     beam_model(f) + 10**logC
+            # Model a power-law with a constant modififed by the PSF response
             def powerlaw_model_wbeam(f, logA, ind, logB, pt_on=1.):
                 return (10**logA * f**-ind + 10**logB * pt_on) * \
                     beam_model(f)
-
-            if res_type == 'orig':
-                curve_fit_model = powerlaw_model_wbeam
-            else:
-                # curve_fit_model = lambda f, logA, ind, frac: \
-                #     powerlaw_model_wbeam(f, logA, ind, frac).eval()
-                curve_fit_model = lambda f, logA, ind, logB: \
-                    powerlaw_model_wbeam(f, logA, ind, logB, pt_on=1.).eval()
-
-            # out_cf = curve_fit(curve_fit_model,
-            #                    freqs,
-            #                    ps1D,
-            #                    p0=(2., 2.2, 0.),
-            #                    # bounds=([-np.inf, 0., 0.], [np.inf, 10., 1.]),
-            #                    bounds=([-np.inf, 0., -np.inf], [np.inf, 10., np.inf]),
-            #                    # p0=(1e2, 2.2),  # 1.0),
-            #                    sigma=ps1D_stddev,
-            #                    absolute_sigma=True, maxfev=100000)
-
-            # print("Fit_params: {}".format(out_cf[0]))
-            # print("Fit_errs: {}".format(np.sqrt(np.abs(np.diag(out_cf[1])))))
 
             # Try a pymc model to fit
 
             ntune = 2000
             nsamp = 6000
-            # ntune = 5000
-            # nsamp = 10000
 
             with pm.Model() as model:
 
                 logA = pm.Uniform('logA', -20., 20.)
                 ind = pm.Uniform('index', 0.0, 10.)
-                # frac = pm.Uniform('frac', 0., 1.)
                 logB = pm.Uniform('logB', -20., 20.)
-                # pt_on = pm.Bernoulli('pt_on', p=0.5)
-                # BoundedNormal = pm.Bound(pm.Normal, lower=-20.)
-                # logB = BoundedNormal('logB', mu=-20.0, sd=5.0)
-                # logC = pm.Uniform('logC', -20., 20.)
 
                 ps_vals = pm.Normal('obs',
-                                    powerlaw_model_wbeam(freqs, logA, ind, logB), #, pt_on),
+                                    powerlaw_model_wbeam(freqs, logA, ind, logB),
                                     sd=ps1D_stddev,
                                     observed=ps1D)
-                # ps_vals = pm.Normal('obs',
-                #                     powerlaw_model_wbeam(freqs, logA, ind, frac),
-                #                     sd=ps1D_stddev,
-                #                     observed=ps1D)
 
                 # step = pm.Slice()
-                # step1 = pm.BinaryGibbsMetropolis([pt_on])
                 # step2 = pm.Metropolis([logA, ind, logB])
-                # step = [step1, step2]
                 # step = pm.NUTS()
                 step = pm.SMC()
 
                 trace = pm.sample(nsamp, tune=ntune, step=step,
                                   progressbar=True,
-                                  # cores=4)
-                                  cores=None)
+                                  cores=ncores)
 
             summ = pm.summary(trace)
 
@@ -280,19 +279,17 @@ for gal, dist in zip(gals, distances):
                                color='gray', alpha=0.7,
                                linewidth=3, zorder=-1)
                 else:
-                    plt.loglog(freqs, powerlaw_model_wbeam(freqs, *pars).eval(),
+                    plt.loglog(freqs,
+                               powerlaw_model_wbeam(freqs, *pars).eval(),
                                color='gray', alpha=0.7,
                                linewidth=3, zorder=-1)
 
-
             plt.axvline(1 / beam_size, linestyle=':', linewidth=4,
                         alpha=0.8, color='gray')
-            # plt.axvline(1 / beam_gauss_width)
 
             plt.grid()
 
             plt.subplot(122)
-            # plt.title(filename)
             plt.imshow(np.log10(pspec.ps2D), origin='lower')
             plt.colorbar()
 
@@ -304,7 +301,6 @@ for gal, dist in zip(gals, distances):
 
             print(plot_savename)
             print("Fit_params: {}".format(out[0]))
-            # print("Fit_errs: {}".format(np.sqrt(np.abs(np.diag(out[1])))))
             print("Fit_errs: {}".format(out[1]))
             if make_interactive:
                 input("?")
@@ -313,7 +309,6 @@ for gal, dist in zip(gals, distances):
 
             plot_savename = osjoin(plot_folder, "{0}.pspec_wbeam.pdf".format(filename.rstrip(".fits")))
             plt.savefig(plot_savename)
-
 
             plt.close()
 
@@ -329,7 +324,6 @@ for gal, dist in zip(gals, distances):
 
             plot_savename = osjoin(plot_folder, "{0}.pspec_wbeam_traceplot.pdf".format(filename.rstrip(".fits")))
             plt.savefig(plot_savename)
-
 
             plt.close()
 
@@ -389,7 +383,6 @@ for gal, dist in zip(gals, distances):
 
             plt.axvline(phys_beam, linestyle=':', linewidth=4,
                         alpha=0.8, color='gray')
-            # plt.axvline(1 / beam_gauss_width)
 
             plt.grid()
 
@@ -402,10 +395,5 @@ for gal, dist in zip(gals, distances):
 
             plt.close()
 
-        # plt.draw()
-        # print(out[0])
-        # input(filename)
-        # plt.clf()
-
-df = pd.DataFrame(fit_results, index=row_names)
-df.to_csv(os.path.expanduser("~/tycho/Utomo19_LGdust/pspec_fit_results.csv"))
+        df = pd.DataFrame(fit_results, index=row_names)
+        df.to_csv(os.path.expanduser("~/tycho/Utomo19_LGdust/pspec_lmc_mip24_30dorcomparison_fit_results.csv"))

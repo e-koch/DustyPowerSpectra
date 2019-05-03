@@ -26,9 +26,13 @@ osjoin = os.path.join
 
 
 # Running on SegFault w/ data on bigdata
-data_path = os.path.expanduser("~/bigdata/ekoch/Utomo19_LGdust/")
+# data_path = os.path.expanduser("~/bigdata/ekoch/Utomo19_LGdust/")
 
-kern_path = os.path.expanduser("~/bigdata/ekoch/Aniano_kernels/")
+# kern_path = os.path.expanduser("~/bigdata/ekoch/Aniano_kernels/")
+
+data_path = os.path.expanduser("~/tycho/Utomo19_LGdust/")
+
+kern_path = os.path.expanduser("~/tycho/Aniano_kernels/")
 
 
 names = {'mips160': {"agg": "Kernel_HiRes_MIPS_160_to_Gauss_41.fits",
@@ -93,12 +97,12 @@ for gal in gals:
             # Now open the kernel file
             kernfits_name = names[name][set_type]
 
-            if len(kernfits_name) == "":
+            if len(kernfits_name) == 0:
                 # Handle the missing SPIRE 500 case
                 # Just write out the original data
                 proj = proj.with_beam(Beam(36.4 * u.arcsec))
-                proj.writeto(osjoin(data_path, gal, out_filename),
-                             overwrite=True)
+                proj.write(osjoin(data_path, gal, out_filename),
+                           overwrite=True)
                 continue
 
             kernel_filename = osjoin(kern_path, kernfits_name)
@@ -119,12 +123,17 @@ for gal in gals:
             conv_img = convolve_fft(proj.value, kernel, allow_huge=True)
 
             # Apply original NaN mask
-            conv_img = conv_img * np.isfinite(proj)
+            conv_img[np.isnan(proj)] = np.NaN
 
-            hdu = fits.PrimaryHDU(conv_img, proj.header)
-            new_proj = Projection.from_hdu(hdu)
+            hdu_new = fits.PrimaryHDU(conv_img, proj.header)
+            new_proj = Projection.from_hdu(hdu_new)
 
             new_proj = new_proj.with_beam(beam)
 
             new_proj.write(osjoin(data_path, gal, out_filename),
                            overwrite=True)
+
+            del new_proj
+            del kern_proj
+
+        del proj
