@@ -23,37 +23,111 @@ if not plt.isinteractive() and make_interactive:
 osjoin = os.path.join
 
 from turbustat.statistics import PowerSpectrum
+from turbustat.statistics.psds import make_radial_freq_arrays
 
+
+# Load model functions
+repo_path = os.path.expanduser("~/ownCloud/code_development/DustyPowerSpectra/")
+code_name = os.path.join(repo_path, "models.py")
+exec(compile(open(code_name, "rb").read(), code_name, 'exec'))
 
 # Running on SegFault w/ data on bigdata
-# data_path = os.path.expanduser("~/bigdata/ekoch/Utomo19_LGdust/")
-data_path = os.path.expanduser("~/tycho/Utomo19_LGdust/")
+data_path = os.path.expanduser("~/bigdata/ekoch/Utomo19_LGdust/")
+# Running on tycho
+# data_path = os.path.expanduser("~/tycho/Utomo19_LGdust/")
 
-names = {'mips24': Beam(6.5 * u.arcsec),
-         'mips70': Beam(18.7 * u.arcsec),
-         'pacs100': Beam(7.1 * u.arcsec),
-         'mips160': Beam(38.8 * u.arcsec),
-         'pacs160': Beam(11.2 * u.arcsec),
-         # # 'pacs70': Beam(5.8 * u.arcsec),
-         'spire250': Beam(18.2 * u.arcsec),
-         'spire350': Beam(25 * u.arcsec),
-         'spire500': Beam(36.4 * u.arcsec)}
 
-gals = ['LMC', 'SMC', 'M33', 'M31']
+# Elements of the dictionary are:
+# Band name: eff Gaussian width at original res., low freq cut for fit,
+# high freq cut for fit, low intensity cut to mask in image, high intensity
+# cut to mask in image, use beam shape in fit
 
-# Run at original, aggressive convolution to Gaussian, and moderate
-# convolution to Gaussian
+# A freq cut-off of None defaults to 3 times the Gaussian beam
 
-# res_types = ['orig', 'agg', 'mod']
+fitinfo_dict = dict()
+
+fitinfo_dict["LMC"] = \
+    {'mips24': {'beam': Beam(6.5 * u.arcsec), 'low_cut': None, 'high_cut': None,
+                'use_beam': True},
+     'mips70': {'beam': Beam(18.7 * u.arcsec), 'low_cut': None, 'high_cut': None,
+                'use_beam': True},
+     'pacs100': {'beam': Beam(7.1 * u.arcsec), 'low_cut': None, 'high_cut': None,
+                'use_beam': True},
+     'mips160': {'beam': Beam(38.8 * u.arcsec), 'low_cut': None, 'high_cut': None,
+                'use_beam': True},
+     'pacs160': {'beam': Beam(11.2 * u.arcsec), 'low_cut': None, 'high_cut': None,
+                'use_beam': True},
+     'spire250': {'beam': Beam(18.2 * u.arcsec), 'low_cut': None, 'high_cut': None,
+                'use_beam': True},
+     'spire350': {'beam': Beam(25 * u.arcsec), 'low_cut': None, 'high_cut': None,
+                'use_beam': True},
+     'spire500': {'beam': Beam(36.4 * u.arcsec), 'low_cut': None, 'high_cut': None,
+                'use_beam': True}}
+
+fitinfo_dict["SMC"] = \
+    {'mips24': {'beam': Beam(6.5 * u.arcsec), 'low_cut': None, 'high_cut': None,
+                'use_beam': True},
+     'mips70': {'beam': Beam(18.7 * u.arcsec), 'low_cut': None, 'high_cut': 0.06,
+                'use_beam': False},
+     'pacs100': {'beam': Beam(7.1 * u.arcsec), 'low_cut': None, 'high_cut': None,
+                 'use_beam': True},
+     'mips160': {'beam': Beam(38.8 * u.arcsec), 'low_cut': None, 'high_cut': None,
+                'use_beam': True},
+     'pacs160': {'beam': Beam(11.2 * u.arcsec), 'low_cut': None, 'high_cut': 0.1,
+                 'use_beam': False},
+     'spire250': {'beam': Beam(18.2 * u.arcsec), 'low_cut': None, 'high_cut': None,
+                  'use_beam': True},
+     'spire350': {'beam': Beam(25 * u.arcsec), 'low_cut': None, 'high_cut': None,
+                  'use_beam': True},
+     'spire500': {'beam': Beam(36.4 * u.arcsec), 'low_cut': None, 'high_cut': None,
+                  'use_beam': True}}
+
+fitinfo_dict["M33"] = \
+    {'mips24': {'beam': Beam(6.5 * u.arcsec), 'low_cut': None, 'high_cut': None,
+                'use_beam': True},
+     'mips70': {'beam': Beam(18.7 * u.arcsec), 'low_cut': None, 'high_cut': None,
+                'use_beam': True},
+     'pacs100': {'beam': Beam(7.1 * u.arcsec), 'low_cut': None, 'high_cut': None,
+                'use_beam': True},
+     'mips160': {'beam': Beam(38.8 * u.arcsec), 'low_cut': None, 'high_cut': None,
+                'use_beam': True},
+     'pacs160': {'beam': Beam(11.2 * u.arcsec), 'low_cut': None, 'high_cut': None,
+                'use_beam': True},
+     'spire250': {'beam': Beam(18.2 * u.arcsec), 'low_cut': None, 'high_cut': None,
+                'use_beam': True},
+     'spire350': {'beam': Beam(25 * u.arcsec), 'low_cut': None, 'high_cut': None,
+                'use_beam': True},
+     'spire500': {'beam': Beam(36.4 * u.arcsec), 'low_cut': None, 'high_cut': None,
+                'use_beam': True}}
+
+fitinfo_dict["M31"] = \
+    {'mips24': {'beam': Beam(6.5 * u.arcsec), 'low_cut': None, 'high_cut': None,
+                'use_beam': True},
+     'mips70': {'beam': Beam(18.7 * u.arcsec), 'low_cut': None, 'high_cut': None,
+                'use_beam': True},
+     'pacs100': {'beam': Beam(7.1 * u.arcsec), 'low_cut': None, 'high_cut': 0.03,
+                'use_beam': False},
+     'mips160': {'beam': Beam(38.8 * u.arcsec), 'low_cut': None, 'high_cut': None,
+                'use_beam': True},
+     'pacs160': {'beam': Beam(11.2 * u.arcsec), 'low_cut': None, 'high_cut': None,
+                'use_beam': True},
+     'spire250': {'beam': Beam(18.2 * u.arcsec), 'low_cut': None, 'high_cut': None,
+                'use_beam': True},
+     'spire350': {'beam': Beam(25 * u.arcsec), 'low_cut': None, 'high_cut': None,
+                'use_beam': True},
+     'spire500': {'beam': Beam(36.4 * u.arcsec), 'low_cut': None, 'high_cut': None,
+                'use_beam': True}}
+
+# gals = ['LMC', 'SMC', 'M33', 'M31']
+gals = ['SMC', 'M33', 'M31']
+
+
+# Run at original and moderate convolution to Gaussian
+
 res_types = ['orig', 'mod']
 
 
 distances = [50.1 * u.kpc, 62.1 * u.kpc, 840 * u.kpc, 744 * u.kpc]
-
-# Some images are large. Run fft in parallel
-ncores = 6
-
-img_view = False
 
 skip_check = False
 
@@ -70,7 +144,9 @@ for gal, dist in zip(gals, distances):
     if not os.path.exists(plot_folder):
         os.mkdir(plot_folder)
 
-    for name in names:
+    for name in fitinfo_dict[gal]:
+
+        name = 'mips70'
 
         print("On {}".format(name))
 
@@ -82,13 +158,6 @@ for gal, dist in zip(gals, distances):
                 filename = "{0}_{1}_mjysr.pspec.pkl".format(gal.lower(), name)
             else:
                 filename = "{0}_{1}_{2}_mjysr.pspec.pkl".format(gal.lower(), name, res_type)
-
-            # For the convolved maps, the scale changes so use glob
-            # filename = "{0}_{1}_gauss*.fits".format(gal.lower(), name)
-            # matches = glob(osjoin(data_path, gal, filename))
-            # if len(matches) == 0:
-            #     raise ValueError("Problem")
-            # filename = matches[1]
 
             if not os.path.exists(osjoin(data_path, gal, filename)):
                 print("Could not find {}. Skipping".format(filename))
@@ -104,10 +173,16 @@ for gal, dist in zip(gals, distances):
             beam_size = beam_size.value
             beam_gauss_width = beam_size / np.sqrt(8 * np.log(2))
 
+            if fitinfo_dict[gal][name]['high_cut'] is not None:
+                high_cut = fitinfo_dict[gal][name]['high_cut']
+
+            else:
+                high_cut = (1 / (beam_gauss_width * 3.))
+
             # Fit on scales > 3 pixels to avoid flattening from pixelization
             # fit_mask = pspec.freqs.value < 1 / 3.
-            fit_mask = pspec.freqs.value < (1 / (beam_gauss_width * 3.))
             # fit_mask = pspec.freqs.value < 0.1
+            fit_mask = pspec.freqs.value < high_cut
 
             # And cut out the largest scales due to expected deviations with
             # small stddev
@@ -126,107 +201,26 @@ for gal, dist in zip(gals, distances):
                 if not os.path.exists(kern_fpath):
                     raise OSError("Pspec {0} not found.".format(kern_fpath))
 
-                # Load in the pspec and use a spline fit of the pspec for the beam
-                # model
-                kern_pspec = PowerSpectrum.load_results(kern_fpath)
-
-                largest_val = kern_pspec.ps1D[0]
-                smallest_freq = kern_pspec.freqs.value[0]
-
-                spl = InterpolatedUnivariateSpline(kern_pspec.freqs.value,
-                                                   kern_pspec.ps1D)
-
-                def beam_model(f):
-
-                    beam_vals = np.empty_like(f)
-                    # beam_vals = T.zeros_like(f)
-                    # if on scales larger than the kernel image, return
-                    # value on largest scale
-                    beam_vals[f < smallest_freq] = largest_val
-                    beam_vals[f >= smallest_freq] = spl(f[f >= smallest_freq])
-
-                    return beam_vals
+                beam_model = make_psf_beam_function(kern_fpath)
 
             # otherwise use a gaussian beam model
             else:
 
                 def beam_model(f):
-                    # return np.exp(-f**2 * np.pi**2 * 4 * beam_gauss_width**2)
-                    return T.exp(-f**2 * np.pi**2 * 4 * beam_gauss_width**2)
+                    return gaussian_beam(f, beam_gauss_width)
 
-
-            # def powerlaw_model_wbeam(f, logA, ind, frac):  # , logC=-3.):
-            #     return 10**logA * (frac * f**-ind + (1 - frac)) * \
-            #         beam_model(f)
-            #     # return (10**logA * f**-ind + 10**logB) * \
-            #     #     beam_model(f) + 10**logC
-            def powerlaw_model_wbeam(f, logA, ind, logB, pt_on=1.):
-                return (10**logA * f**-ind + 10**logB * pt_on) * \
-                    beam_model(f)
-
-            if res_type == 'orig':
-                curve_fit_model = powerlaw_model_wbeam
-            else:
-                # curve_fit_model = lambda f, logA, ind, frac: \
-                #     powerlaw_model_wbeam(f, logA, ind, frac).eval()
-                curve_fit_model = lambda f, logA, ind, logB: \
-                    powerlaw_model_wbeam(f, logA, ind, logB, pt_on=1.).eval()
-
-            # out_cf = curve_fit(curve_fit_model,
-            #                    freqs,
-            #                    ps1D,
-            #                    p0=(2., 2.2, 0.),
-            #                    # bounds=([-np.inf, 0., 0.], [np.inf, 10., 1.]),
-            #                    bounds=([-np.inf, 0., -np.inf], [np.inf, 10., np.inf]),
-            #                    # p0=(1e2, 2.2),  # 1.0),
-            #                    sigma=ps1D_stddev,
-            #                    absolute_sigma=True, maxfev=100000)
-
-            # print("Fit_params: {}".format(out_cf[0]))
-            # print("Fit_errs: {}".format(np.sqrt(np.abs(np.diag(out_cf[1])))))
-
-            # Try a pymc model to fit
-
-            ntune = 2000
             nsamp = 6000
-            # ntune = 5000
-            # nsamp = 10000
 
-            with pm.Model() as model:
+            # Set whether to use the beam_model
+            if fitinfo_dict[gal][name]['use_beam']:
+                fit_beam_model = beam_model
+            else:
+                fit_beam_model = None
 
-                logA = pm.Uniform('logA', -20., 20.)
-                ind = pm.Uniform('index', 0.0, 10.)
-                # frac = pm.Uniform('frac', 0., 1.)
-                logB = pm.Uniform('logB', -20., 20.)
-                # pt_on = pm.Bernoulli('pt_on', p=0.5)
-                # BoundedNormal = pm.Bound(pm.Normal, lower=-20.)
-                # logB = BoundedNormal('logB', mu=-20.0, sd=5.0)
-                # logC = pm.Uniform('logC', -20., 20.)
-
-                ps_vals = pm.Normal('obs',
-                                    powerlaw_model_wbeam(freqs, logA, ind, logB), #, pt_on),
-                                    sd=ps1D_stddev,
-                                    observed=ps1D)
-                # ps_vals = pm.Normal('obs',
-                #                     powerlaw_model_wbeam(freqs, logA, ind, frac),
-                #                     sd=ps1D_stddev,
-                #                     observed=ps1D)
-
-                # step = pm.Slice()
-                # step1 = pm.BinaryGibbsMetropolis([pt_on])
-                # step2 = pm.Metropolis([logA, ind, logB])
-                # step = [step1, step2]
-                # step = pm.NUTS()
-                step = pm.SMC()
-
-                trace = pm.sample(nsamp, tune=ntune, step=step,
-                                  progressbar=True,
-                                  # cores=4)
-                                  cores=None)
-
-            summ = pm.summary(trace)
-
-            out = [np.array(summ['mean']), np.array(summ['sd'])]
+            out, summ, trace, fit_model = fit_pspec_model(freqs, ps1D,
+                                                          ps1D_stddev,
+                                                          beam_model=fit_beam_model,
+                                                          nsamp=nsamp)
 
             row_names.append("{0}_{1}_{2}".format(gal.lower(), name, res_type))
 
@@ -246,17 +240,10 @@ for gal, dist in zip(gals, distances):
 
             beam_amp = 10**(max(out[0][0], out[0][2]) - 1.)
 
-            if res_type == 'orig':
-                plt.loglog(freqs, powerlaw_model_wbeam(freqs, *out[0]), 'r--',
-                           linewidth=3, label='Fit')
-                plt.loglog(freqs,
-                           beam_amp * beam_model(freqs), 'r:', label='PSF')
-            else:
-                plt.loglog(freqs, powerlaw_model_wbeam(freqs, *out[0]).eval(), 'r--',
-                           linewidth=3, label='Fit')
-                plt.loglog(freqs,
-                           beam_amp * beam_model(freqs).eval(), 'r:',
-                           label='PSF')
+            plt.loglog(freqs, fit_model(freqs, *out[0]), 'r--',
+                       linewidth=3, label='Fit')
+            plt.loglog(freqs,
+                       beam_amp * beam_model(freqs), 'r:', label='PSF')
 
             plt.xlabel("Freq. (1 / pix)")
 
@@ -274,15 +261,9 @@ for gal, dist in zip(gals, distances):
 
                 pars = np.array([logA, ind, logB])
 
-                if res_type == 'orig':
-
-                    plt.loglog(freqs, powerlaw_model_wbeam(freqs, *pars),
-                               color='gray', alpha=0.7,
-                               linewidth=3, zorder=-1)
-                else:
-                    plt.loglog(freqs, powerlaw_model_wbeam(freqs, *pars).eval(),
-                               color='gray', alpha=0.7,
-                               linewidth=3, zorder=-1)
+                plt.loglog(freqs, fit_model(freqs, *pars),
+                           color='gray', alpha=0.2,
+                           linewidth=3, zorder=-1)
 
 
             plt.axvline(1 / beam_size, linestyle=':', linewidth=4,
@@ -293,8 +274,17 @@ for gal, dist in zip(gals, distances):
 
             plt.subplot(122)
             # plt.title(filename)
-            plt.imshow(np.log10(pspec.ps2D), origin='lower')
-            plt.colorbar()
+            plt.imshow(np.log10(pspec.ps2D), origin='lower', cmap='plasma')
+            cbar = plt.colorbar()
+
+            # Add contour showing region fit
+            yy_freq, xx_freq = make_radial_freq_arrays(pspec.ps2D.shape)
+
+            freqs_dist = np.sqrt(yy_freq**2 + xx_freq**2)
+
+            mask = freqs_dist <= high_cut
+
+            plt.contour(mask, colors=['k'], linestyles=['--'])
 
             plt.tight_layout()
 
@@ -343,19 +333,11 @@ for gal, dist in zip(gals, distances):
 
             beam_amp = 10**(max(out[0][0], out[0][2]) - 1.)
 
-            if res_type == 'orig':
-                plt.loglog(phys_freqs[fit_mask],
-                           powerlaw_model_wbeam(freqs, *out[0]), 'r--',
-                           linewidth=3, label='Fit')
-                plt.loglog(phys_freqs[fit_mask],
-                           beam_amp * beam_model(freqs), 'r:', label='PSF')
-            else:
-                plt.loglog(phys_freqs[fit_mask],
-                           powerlaw_model_wbeam(freqs, *out[0]).eval(), 'r--',
-                           linewidth=3, label='Fit')
-                plt.loglog(phys_freqs[fit_mask],
-                           beam_amp * beam_model(freqs).eval(), 'r:',
-                           label='PSF')
+            plt.loglog(phys_freqs[fit_mask],
+                       fit_model(freqs, *out[0]), 'r--',
+                       linewidth=3, label='Fit')
+            plt.loglog(phys_freqs[fit_mask],
+                       beam_amp * beam_model(freqs), 'r:', label='PSF')
 
             plt.xlabel(r"Freq. (pc$^{-1}$)")
 
@@ -373,17 +355,10 @@ for gal, dist in zip(gals, distances):
 
                 pars = np.array([logA, ind, logB])
 
-                if res_type == 'orig':
-
-                    plt.loglog(phys_freqs[fit_mask],
-                               powerlaw_model_wbeam(freqs, *pars),
-                               color='gray', alpha=0.7,
-                               linewidth=3, zorder=-1)
-                else:
-                    plt.loglog(phys_freqs[fit_mask],
-                               powerlaw_model_wbeam(freqs, *pars).eval(),
-                               color='gray', alpha=0.7,
-                               linewidth=3, zorder=-1)
+                plt.loglog(phys_freqs[fit_mask],
+                           fit_model(freqs, *pars),
+                           color='gray', alpha=0.25,
+                           linewidth=3, zorder=-1)
 
             phys_beam = pspec._spatial_freq_unit_conversion(1 / (beam_size * u.pix), u.pc**-1).value
 

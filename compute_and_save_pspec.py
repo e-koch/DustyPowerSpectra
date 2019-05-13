@@ -30,24 +30,87 @@ from turbustat.statistics import PowerSpectrum
 # data_path = os.path.expanduser("~/bigdata/ekoch/Utomo19_LGdust/")
 data_path = os.path.expanduser("~/tycho/Utomo19_LGdust/")
 
-names = {'mips160': Beam(38.8 * u.arcsec),
-         'mips24': Beam(6.5 * u.arcsec),
-         'mips70': Beam(18.7 * u.arcsec),
-         'pacs100': Beam(7.1 * u.arcsec),
-         'pacs160': Beam(11.2 * u.arcsec),
-         # 'pacs70': Beam(5.8 * u.arcsec),
-         'spire250': Beam(18.2 * u.arcsec),
-         'spire350': Beam(25 * u.arcsec),
-         'spire500': Beam(36.4 * u.arcsec)}
+
+fitinfo_dict = dict()
+
+fitinfo_dict["LMC"] = \
+    {'mips24': {'beam': Beam(6.5 * u.arcsec), 'apod_kern': None,
+                'low_int_cut': None, 'high_int_cut': None},
+     'mips70': {'beam': Beam(18.7 * u.arcsec), 'apod_kern': None,
+                'low_int_cut': -1000., 'high_int_cut': 4000.},
+     'pacs100': {'beam': Beam(7.1 * u.arcsec), 'apod_kern': None,
+                'low_int_cut': None, 'high_int_cut': None},
+     'mips160': {'beam': Beam(38.8 * u.arcsec), 'apod_kern': None,
+                'low_int_cut': None, 'high_int_cut': None},
+     'pacs160': {'beam': Beam(11.2 * u.arcsec), 'apod_kern': None,
+                'low_int_cut': None, 'high_int_cut': None},
+     'spire250': {'beam': Beam(18.2 * u.arcsec), 'apod_kern': None,
+                'low_int_cut': None, 'high_int_cut': None},
+     'spire350': {'beam': Beam(25 * u.arcsec), 'apod_kern': None,
+                'low_int_cut': None, 'high_int_cut': None},
+     'spire500': {'beam': Beam(36.4 * u.arcsec), 'apod_kern': None,
+                'low_int_cut': None, 'high_int_cut': None}}
+
+fitinfo_dict["SMC"] = \
+    {'mips24': {'beam': Beam(6.5 * u.arcsec), 'apod_kern': None,
+                'low_int_cut': None, 'high_int_cut': None},
+     'mips70': {'beam': Beam(18.7 * u.arcsec), 'apod_kern': None,
+                'low_int_cut': None, 'high_int_cut': 2000.},
+     'pacs100': {'beam': Beam(7.1 * u.arcsec), 'apod_kern': None,
+                'low_int_cut': -1000., 'high_int_cut': None},
+     'mips160': {'beam': Beam(38.8 * u.arcsec), 'apod_kern': 'tukey',
+                'low_int_cut': None, 'high_int_cut': None},
+     'pacs160': {'beam': Beam(11.2 * u.arcsec), 'apod_kern': 'tukey',
+                'low_int_cut': None, 'high_int_cut': None},
+     'spire250': {'beam': Beam(18.2 * u.arcsec), 'apod_kern': None,
+                'low_int_cut': None, 'high_int_cut': None},
+     'spire350': {'beam': Beam(25 * u.arcsec), 'apod_kern': None,
+                'low_int_cut': None, 'high_int_cut': None},
+     'spire500': {'beam': Beam(36.4 * u.arcsec), 'apod_kern': None,
+                'low_int_cut': None, 'high_int_cut': None}}
+
+fitinfo_dict["M33"] = \
+    {'mips24': {'beam': Beam(6.5 * u.arcsec), 'apod_kern': None,
+                'low_int_cut': None, 'high_int_cut': None},
+     'mips70': {'beam': Beam(18.7 * u.arcsec), 'apod_kern': None,
+                'low_int_cut': None, 'high_int_cut': None},
+     'pacs100': {'beam': Beam(7.1 * u.arcsec), 'apod_kern': None,
+                'low_int_cut': None, 'high_int_cut': None},
+     'mips160': {'beam': Beam(38.8 * u.arcsec), 'apod_kern': None,
+                'low_int_cut': None, 'high_int_cut': None},
+     'pacs160': {'beam': Beam(11.2 * u.arcsec), 'apod_kern': None,
+                'low_int_cut': None, 'high_int_cut': None},
+     'spire250': {'beam': Beam(18.2 * u.arcsec), 'apod_kern': None,
+                'low_int_cut': None, 'high_int_cut': None},
+     'spire350': {'beam': Beam(25 * u.arcsec), 'apod_kern': None,
+                'low_int_cut': None, 'high_int_cut': None},
+     'spire500': {'beam': Beam(36.4 * u.arcsec), 'apod_kern': None,
+                'low_int_cut': None, 'high_int_cut': None}}
+
+fitinfo_dict["M31"] = \
+    {'mips24': {'beam': Beam(6.5 * u.arcsec), 'apod_kern': None,
+                'low_int_cut': None, 'high_int_cut': None},
+     'mips70': {'beam': Beam(18.7 * u.arcsec), 'apod_kern': None,
+                'low_int_cut': None, 'high_int_cut': None},
+     'pacs100': {'beam': Beam(7.1 * u.arcsec), 'apod_kern': None,
+                'low_int_cut': None, 'high_int_cut': None},
+     'mips160': {'beam': Beam(38.8 * u.arcsec), 'apod_kern': 'tukey',
+                'low_int_cut': None, 'high_int_cut': None},
+     'pacs160': {'beam': Beam(11.2 * u.arcsec), 'apod_kern': 'tukey',
+                'low_int_cut': None, 'high_int_cut': None},
+     'spire250': {'beam': Beam(18.2 * u.arcsec), 'apod_kern': 'tukey',
+                'low_int_cut': None, 'high_int_cut': None},
+     'spire350': {'beam': Beam(25 * u.arcsec), 'apod_kern': 'tukey',
+                'low_int_cut': None, 'high_int_cut': None},
+     'spire500': {'beam': Beam(36.4 * u.arcsec), 'apod_kern': 'tukey',
+                'low_int_cut': None, 'high_int_cut': None}}
 
 gals = ['LMC', 'SMC', 'M33', 'M31']
 
 # Run at original, aggressive convolution to Gaussian, and moderate
 # convolution to Gaussian
 
-res_types = ['orig', 'agg', 'mod']
-
-# dist_cuts = [5, 3, 12, 20] * u.kpc
+res_types = ['orig', 'mod']
 
 distances = [50.1 * u.kpc, 62.1 * u.kpc, 840 * u.kpc, 744 * u.kpc]
 
@@ -59,19 +122,6 @@ img_view = False
 skip_check = True
 
 for gal, dist in zip(gals, distances):
-
-    # Define galaxy object
-    # gal_cls = Galaxy(gal)
-
-    # Adopt disc params used in Utomo+2019
-    # if gal == 'SMC':
-    #     gal_cls.inclination = 2.6 * u.deg
-    #     gal_cls.position_angle = 70.2 * u.deg
-    # elif gal == 'LMC':
-    #     gal_cls.inclination = 34.7 * u.deg
-        # gal.position_angle = 170 * u.deg
-    # M33 values already set from Koch+2018
-    # M31 defaults seem reasonable, but double-check
 
     # Load in the dust column density maps to set the allowed
     # spatial region
@@ -106,7 +156,7 @@ for gal, dist in zip(gals, distances):
 
     print("On {}".format(gal))
 
-    for name in names:
+    for name in fitinfo_dict[gal]:
 
         print("On {}".format(name))
 
@@ -128,7 +178,7 @@ for gal, dist in zip(gals, distances):
                                                        hdu[0].header))
             # Attach equiv Gaussian beam
             if res_type == 'orig':
-                proj = proj.with_beam(names[name])
+                proj = proj.with_beam(fitinfo_dict[gal][name]['beam'])
             # The convolved images should have all have a beam saved
 
             # Take minimal shape. Remove empty space.
@@ -175,7 +225,8 @@ for gal, dist in zip(gals, distances):
             pspec = PowerSpectrum(proj, distance=dist)
             pspec.run(verbose=False, beam_correct=False, fit_2D=False,
                       high_cut=0.1 / u.pix,
-                      use_pyfftw=True, threads=ncores)
+                      use_pyfftw=True, threads=ncores,
+                      apod_kern=fitinfo_dict[gal][name]['apod_kern'])
 
             pspec.save_results(osjoin(data_path, gal, save_name),
                                keep_data=False)
