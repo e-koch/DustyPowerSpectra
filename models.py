@@ -4,10 +4,12 @@ Wrap pymc3 models used as their own functions.
 '''
 
 import pymc3 as pm
+import numpy as np
+from scipy.interpolate import InterpolatedUnivariateSpline
 from turbustat.statistics import PowerSpectrum
 
 
-def powerlaw_model(f, logA, ind, logB):
+def powerlaw_model(f, logA, ind, logB=-20):
         return 10**logA * f**-ind + 10**logB
 
 
@@ -40,11 +42,11 @@ def make_psf_beam_function(kern_fpath):
     return beam_model
 
 
-def fit_pspec_model(freqs, ps1D, ps1D_stddev, beam_model=None, ntune=2000, nsamp=6000,
-                    step=pm.SMC()):
+def fit_pspec_model(freqs, ps1D, ps1D_stddev, beam_model=None, ntune=2000,
+                    nsamp=6000, step=pm.SMC(), fixB=False):
 
     if beam_model is not None:
-        def powerlaw_fit_model(f, logA, ind, logB):
+        def powerlaw_fit_model(f, logA, ind, logB=-20):
             return powerlaw_model(f, logA, ind, logB) * beam_model(f)
     else:
         powerlaw_fit_model = powerlaw_model
@@ -55,10 +57,13 @@ def fit_pspec_model(freqs, ps1D, ps1D_stddev, beam_model=None, ntune=2000, nsamp
 
         logA = pm.Uniform('logA', -20., 20.)
         ind = pm.Uniform('index', 0.0, 10.)
-        logB = pm.Uniform('logB', -20., 20.)
+        if not fixB:
+            logB = pm.Uniform('logB', -20., 20.)
+        else:
+            logB = -20.
 
         ps_vals = pm.Normal('obs',
-                            powerlaw_fit_model(freqs, logA, ind, logB),
+                            powerlaw_fit_model(freqs, logA, ind, logB=logB),
                             sd=ps1D_stddev,
                             observed=ps1D)
 
