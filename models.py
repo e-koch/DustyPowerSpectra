@@ -10,7 +10,7 @@ from turbustat.statistics import PowerSpectrum
 
 
 def powerlaw_model(f, logA, ind, logB=-20):
-        return 10**logA * f**-ind + 10**logB
+    return 10**logA * f**-ind + 10**logB
 
 
 def gaussian_beam(f, beam_gauss_width):
@@ -43,13 +43,24 @@ def make_psf_beam_function(kern_fpath):
 
 
 def fit_pspec_model(freqs, ps1D, ps1D_stddev, beam_model=None, ntune=2000,
-                    nsamp=6000, step=pm.SMC(), fixB=False):
+                    nsamp=6000, step=pm.SMC(), fixB=False, noise_term=False):
+
+    def powerlaw_model(f, logA, ind, logB=-20):
+        return 10**logA * f**-ind + 10**logB
 
     if beam_model is not None:
-        def powerlaw_fit_model(f, logA, ind, logB=-20):
-            return powerlaw_model(f, logA, ind, logB) * beam_model(f)
+        if noise_term:
+            def powerlaw_fit_model(f, logA, ind, logB=-20, logC=-20):
+                return powerlaw_model(f, logA, ind, logB) * beam_model(f) + logC
+        else:
+            def powerlaw_fit_model(f, logA, ind, logB=-20):
+                return powerlaw_model(f, logA, ind, logB) * beam_model(f)
     else:
-        powerlaw_fit_model = powerlaw_model
+        if noise_term:
+            def powerlaw_fit_model(f, logA, ind, logB=-20, logC=-20):
+                return powerlaw_model(f, logA, ind, logB) + logC
+        else:
+            powerlaw_fit_model = powerlaw_model
 
     # Try a pymc model to fit
 
@@ -62,10 +73,17 @@ def fit_pspec_model(freqs, ps1D, ps1D_stddev, beam_model=None, ntune=2000,
         else:
             logB = -20.
 
-        ps_vals = pm.Normal('obs',
-                            powerlaw_fit_model(freqs, logA, ind, logB=logB),
-                            sd=ps1D_stddev,
-                            observed=ps1D)
+        if noise_term:
+            logC = pm.Uniform('logC', -20., 20.)
+            ps_vals = pm.Normal('obs',
+                                powerlaw_fit_model(freqs, logA, ind, logB=logB, logC=logC),
+                                sd=ps1D_stddev,
+                                observed=ps1D)
+        else:
+            ps_vals = pm.Normal('obs',
+                                powerlaw_fit_model(freqs, logA, ind, logB=logB),
+                                sd=ps1D_stddev,
+                                observed=ps1D)
 
         # step = pm.Slice()
         # step = pm.NUTS()
