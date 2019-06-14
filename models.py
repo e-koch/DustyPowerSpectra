@@ -43,7 +43,9 @@ def make_psf_beam_function(kern_fpath):
 
 
 def fit_pspec_model(freqs, ps1D, ps1D_stddev, beam_model=None, ntune=2000,
-                    nsamp=6000, step=pm.SMC(), fixB=False, noise_term=False):
+                    nsamp=6000, step=pm.SMC(parallel=False), cores=1,
+                    fixB=False, noise_term=False,
+                    progressbar=True):
 
     def powerlaw_model(f, logA, ind, logB=-20):
         return 10**logA * f**-ind + 10**logB
@@ -90,8 +92,8 @@ def fit_pspec_model(freqs, ps1D, ps1D_stddev, beam_model=None, ntune=2000,
         # step = pm.SMC()
 
         trace = pm.sample(nsamp, tune=ntune, step=step,
-                          progressbar=True,
-                          cores=None)
+                          progressbar=progressbar,
+                          cores=cores)
 
     summ = pm.summary(trace)
 
