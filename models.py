@@ -53,14 +53,14 @@ def fit_pspec_model(freqs, ps1D, ps1D_stddev, beam_model=None, ntune=2000,
     if beam_model is not None:
         if noise_term:
             def powerlaw_fit_model(f, logA, ind, logB=-20, logC=-20):
-                return powerlaw_model(f, logA, ind, logB) * beam_model(f) + logC
+                return powerlaw_model(f, logA, ind, logB) * beam_model(f) + 10**logC
         else:
             def powerlaw_fit_model(f, logA, ind, logB=-20):
                 return powerlaw_model(f, logA, ind, logB) * beam_model(f)
     else:
         if noise_term:
             def powerlaw_fit_model(f, logA, ind, logB=-20, logC=-20):
-                return powerlaw_model(f, logA, ind, logB) + logC
+                return powerlaw_model(f, logA, ind, logB) + 10**logC
         else:
             powerlaw_fit_model = powerlaw_model
 
