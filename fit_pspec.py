@@ -11,14 +11,14 @@ import seaborn as sb
 from scipy.optimize import curve_fit
 from radio_beam import Beam
 import pymc3 as pm
-import theano.tensor as T
-from scipy.interpolate import InterpolatedUnivariateSpline
 import pandas as pd
 
 make_interactive = False
 
 if not plt.isinteractive() and make_interactive:
     plt.ion()
+else:
+    plt.ioff()
 
 osjoin = os.path.join
 
@@ -30,6 +30,11 @@ from turbustat.statistics.psds import make_radial_freq_arrays
 repo_path = os.path.expanduser("~/ownCloud/code_development/DustyPowerSpectra/")
 code_name = os.path.join(repo_path, "models.py")
 exec(compile(open(code_name, "rb").read(), code_name, 'exec'))
+
+# Load in fit settings
+# fitsetting_name = os.path.join(repo_path, "fit_settings.py")
+# exec(compile(open(code_name, "rb").read(), fitsetting_name, 'exec'))
+from fit_settings import fitinfo_dict
 
 # Running on SegFault w/ data on bigdata
 data_path = os.path.expanduser("~/bigdata/ekoch/Utomo19_LGdust/")
@@ -44,88 +49,11 @@ data_path = os.path.expanduser("~/bigdata/ekoch/Utomo19_LGdust/")
 
 # A freq cut-off of None defaults to 3 times the Gaussian beam
 
-fitinfo_dict = dict()
-
-fitinfo_dict["LMC"] = \
-    {'mips24': {'beam': Beam(6.5 * u.arcsec), 'low_cut': None, 'high_cut': None,
-                'use_beam': True},
-     'mips70': {'beam': Beam(18.7 * u.arcsec), 'low_cut': None, 'high_cut': None,
-                'use_beam': True},
-     'pacs100': {'beam': Beam(7.1 * u.arcsec), 'low_cut': None, 'high_cut': None,
-                'use_beam': True},
-     'mips160': {'beam': Beam(38.8 * u.arcsec), 'low_cut': None, 'high_cut': None,
-                'use_beam': True},
-     'pacs160': {'beam': Beam(11.2 * u.arcsec), 'low_cut': None, 'high_cut': None,
-                'use_beam': True},
-     'spire250': {'beam': Beam(18.2 * u.arcsec), 'low_cut': None, 'high_cut': None,
-                'use_beam': True},
-     'spire350': {'beam': Beam(25 * u.arcsec), 'low_cut': None, 'high_cut': None,
-                'use_beam': True},
-     'spire500': {'beam': Beam(36.4 * u.arcsec), 'low_cut': None, 'high_cut': None,
-                'use_beam': True}}
-
-fitinfo_dict["SMC"] = \
-    {'mips24': {'beam': Beam(6.5 * u.arcsec), 'low_cut': None, 'high_cut': None,
-                'use_beam': True},
-     'mips70': {'beam': Beam(18.7 * u.arcsec), 'low_cut': None, 'high_cut': 0.06,
-                'use_beam': False},
-     'pacs100': {'beam': Beam(7.1 * u.arcsec), 'low_cut': None, 'high_cut': None,
-                 'use_beam': True},
-     'mips160': {'beam': Beam(38.8 * u.arcsec), 'low_cut': None, 'high_cut': None,
-                'use_beam': True},
-     'pacs160': {'beam': Beam(11.2 * u.arcsec), 'low_cut': None, 'high_cut': 0.1,
-                 'use_beam': False},
-     'spire250': {'beam': Beam(18.2 * u.arcsec), 'low_cut': None, 'high_cut': None,
-                  'use_beam': True},
-     'spire350': {'beam': Beam(25 * u.arcsec), 'low_cut': None, 'high_cut': None,
-                  'use_beam': True},
-     'spire500': {'beam': Beam(36.4 * u.arcsec), 'low_cut': None, 'high_cut': None,
-                  'use_beam': True}}
-
-fitinfo_dict["M33"] = \
-    {'mips24': {'beam': Beam(6.5 * u.arcsec), 'low_cut': None, 'high_cut': None,
-                'use_beam': True},
-     'mips70': {'beam': Beam(18.7 * u.arcsec), 'low_cut': None, 'high_cut': None,
-                'use_beam': True},
-     'pacs100': {'beam': Beam(7.1 * u.arcsec), 'low_cut': None, 'high_cut': None,
-                'use_beam': True},
-     'mips160': {'beam': Beam(38.8 * u.arcsec), 'low_cut': None, 'high_cut': None,
-                'use_beam': True},
-     'pacs160': {'beam': Beam(11.2 * u.arcsec), 'low_cut': None, 'high_cut': None,
-                'use_beam': True},
-     'spire250': {'beam': Beam(18.2 * u.arcsec), 'low_cut': None, 'high_cut': None,
-                'use_beam': True},
-     'spire350': {'beam': Beam(25 * u.arcsec), 'low_cut': None, 'high_cut': None,
-                'use_beam': True},
-     'spire500': {'beam': Beam(36.4 * u.arcsec), 'low_cut': None, 'high_cut': None,
-                'use_beam': True}}
-
-fitinfo_dict["M31"] = \
-    {'mips24': {'beam': Beam(6.5 * u.arcsec), 'low_cut': None, 'high_cut': None,
-                'use_beam': True},
-     'mips70': {'beam': Beam(18.7 * u.arcsec), 'low_cut': None, 'high_cut': None,
-                'use_beam': True},
-     'pacs100': {'beam': Beam(7.1 * u.arcsec), 'low_cut': None, 'high_cut': 0.03,
-                'use_beam': False},
-     'mips160': {'beam': Beam(38.8 * u.arcsec), 'low_cut': None, 'high_cut': None,
-                'use_beam': True},
-     'pacs160': {'beam': Beam(11.2 * u.arcsec), 'low_cut': None, 'high_cut': None,
-                'use_beam': True},
-     'spire250': {'beam': Beam(18.2 * u.arcsec), 'low_cut': None, 'high_cut': None,
-                'use_beam': True},
-     'spire350': {'beam': Beam(25 * u.arcsec), 'low_cut': None, 'high_cut': None,
-                'use_beam': True},
-     'spire500': {'beam': Beam(36.4 * u.arcsec), 'low_cut': None, 'high_cut': None,
-                'use_beam': True}}
-
-# gals = ['LMC', 'SMC', 'M33', 'M31']
-gals = ['SMC', 'M33', 'M31']
-
+gals = ['LMC', 'SMC', 'M33', 'M31']
 
 # Run at original and moderate convolution to Gaussian
 
 res_types = ['orig', 'mod']
-
 
 distances = [50.1 * u.kpc, 62.1 * u.kpc, 840 * u.kpc, 744 * u.kpc]
 
@@ -145,8 +73,6 @@ for gal, dist in zip(gals, distances):
         os.mkdir(plot_folder)
 
     for name in fitinfo_dict[gal]:
-
-        name = 'mips70'
 
         print("On {}".format(name))
 
@@ -265,7 +191,6 @@ for gal, dist in zip(gals, distances):
                            color='gray', alpha=0.2,
                            linewidth=3, zorder=-1)
 
-
             plt.axvline(1 / beam_size, linestyle=':', linewidth=4,
                         alpha=0.8, color='gray')
             # plt.axvline(1 / beam_gauss_width)
@@ -304,7 +229,6 @@ for gal, dist in zip(gals, distances):
             plot_savename = osjoin(plot_folder, "{0}.pspec_wbeam.pdf".format(filename.rstrip(".fits")))
             plt.savefig(plot_savename)
 
-
             plt.close()
 
             tr_plot = pm.traceplot(trace)
@@ -320,7 +244,6 @@ for gal, dist in zip(gals, distances):
             plot_savename = osjoin(plot_folder, "{0}.pspec_wbeam_traceplot.pdf".format(filename.rstrip(".fits")))
             plt.savefig(plot_savename)
 
-
             plt.close()
 
             # OneD spectrum by itself
@@ -329,17 +252,17 @@ for gal, dist in zip(gals, distances):
 
             phys_freqs = pspec._spatial_freq_unit_conversion(pspec.freqs, u.pc**-1).value
 
-            plt.loglog(phys_freqs, pspec.ps1D, 'k', zorder=-10)
+            phys_scales = 1 / phys_freqs
+
+            plt.loglog(phys_scales, pspec.ps1D, 'k', zorder=-10)
 
             beam_amp = 10**(max(out[0][0], out[0][2]) - 1.)
 
-            plt.loglog(phys_freqs[fit_mask],
+            plt.loglog(phys_scales[fit_mask],
                        fit_model(freqs, *out[0]), 'r--',
                        linewidth=3, label='Fit')
-            plt.loglog(phys_freqs[fit_mask],
+            plt.loglog(phys_scales[fit_mask],
                        beam_amp * beam_model(freqs), 'r:', label='PSF')
-
-            plt.xlabel(r"Freq. (pc$^{-1}$)")
 
             plt.legend(frameon=True, loc='upper right')
 
@@ -348,6 +271,9 @@ for gal, dist in zip(gals, distances):
             # Get some random draws
             randints = np.random.randint(0, high=nsamp, size=10)
 
+            # Hang onto the random samples for the paper plots.
+            rand_pars = []
+
             for rint in randints:
                 logA = trace.get_values('logA')[rint]
                 ind = trace.get_values('index')[rint]
@@ -355,18 +281,34 @@ for gal, dist in zip(gals, distances):
 
                 pars = np.array([logA, ind, logB])
 
-                plt.loglog(phys_freqs[fit_mask],
+                rand_pars.append(pars)
+
+                plt.loglog(phys_scales[fit_mask],
                            fit_model(freqs, *pars),
                            color='gray', alpha=0.25,
                            linewidth=3, zorder=-1)
 
+            # Save the random samples to a npy file
+            randfilename = osjoin(data_path, gal.upper(),
+                                  f"{filename}_param_samples.npy")
+            np.save(randfilename, np.array(rand_pars))
+
             phys_beam = pspec._spatial_freq_unit_conversion(1 / (beam_size * u.pix), u.pc**-1).value
 
-            plt.axvline(phys_beam, linestyle=':', linewidth=4,
+            plt.axvline(1 / phys_beam, linestyle=':', linewidth=4,
                         alpha=0.8, color='gray')
             # plt.axvline(1 / beam_gauss_width)
 
             plt.grid()
+
+            # switch labels to spatial scale rather than frequency
+            # ax1 = plt.gca()
+            # ax1Xs = [r"$10^{}$".format(int(-ind)) for ind in np.log10(ax1.get_xticks())]
+            # ax1.set_xticklabels(ax1Xs)
+
+            plt.xlabel(r"Scale (pc)")
+
+            plt.gca().invert_xaxis()
 
             plt.tight_layout()
 
@@ -383,4 +325,4 @@ for gal, dist in zip(gals, distances):
         # plt.clf()
 
 df = pd.DataFrame(fit_results, index=row_names)
-df.to_csv(os.path.expanduser("~/tycho/Utomo19_LGdust/pspec_fit_results.csv"))
+df.to_csv(os.path.join(data_path, "pspec_fit_results.csv"))
