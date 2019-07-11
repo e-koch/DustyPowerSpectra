@@ -15,24 +15,22 @@ import matplotlib.pyplot as plt
 import seaborn as sb
 
 import pymc3 as pm
-import theano.tensor as T
 from scipy.interpolate import InterpolatedUnivariateSpline
-from scipy.optimize import curve_fit
 import pandas as pd
 
 from radio_beam import Beam
-from galaxies import Galaxy
 
 osjoin = os.path.join
 
 from turbustat.statistics import PowerSpectrum
+from turbustat.statistics.psds import make_radial_freq_arrays
 
 do_run_pspec = False
 do_fit_pspec = True
 
 # Running on SegFault w/ data on bigdata
-# data_path = os.path.expanduser("~/bigdata/ekoch/Utomo19_LGdust/")
-data_path = os.path.expanduser("~/tycho/Utomo19_LGdust/")
+data_path = os.path.expanduser("~/bigdata/ekoch/Utomo19_LGdust/")
+# data_path = os.path.expanduser("~/tycho/Utomo19_LGdust/")
 
 names = {'mips24': Beam(6.5 * u.arcsec)}
 name = 'mips24'
@@ -104,6 +102,11 @@ if do_run_pspec:
 
 if do_fit_pspec:
 
+    # Load model functions
+    repo_path = os.path.expanduser("~/ownCloud/code_development/DustyPowerSpectra/")
+    code_name = os.path.join(repo_path, "models.py")
+    exec(compile(open(code_name, "rb").read(), code_name, 'exec'))
+
     # Make a plot output folder
     plot_folder = osjoin(data_path, "{}_plots".format(gal))
     if not os.path.exists(plot_folder):
@@ -117,7 +120,7 @@ if do_fit_pspec:
 
         print("Resolution {}".format(res_type))
 
-        make_interactive = True
+        make_interactive = False
 
         if make_interactive:
             plt.ion()
@@ -146,7 +149,8 @@ if do_fit_pspec:
             beam_gauss_width = beam_size / np.sqrt(8 * np.log(2))
 
             # Fit on scales > 3 pixels to avoid flattening from pixelization
-            fit_mask = pspec.freqs.value < (1 / (beam_gauss_width * 3.))
+            high_cut = 1 / (beam_gauss_width * 3.)
+            fit_mask = pspec.freqs.value < high_cut
 
             # And cut out the largest scales due to expected deviations with
             # small stddev
@@ -189,45 +193,18 @@ if do_fit_pspec:
             else:
 
                 def beam_model(f):
-                    # return np.exp(-f**2 * np.pi**2 * 4 * beam_gauss_width**2)
-                    return T.exp(-f**2 * np.pi**2 * 4 * beam_gauss_width**2)
+                    return np.exp(-f**2 * np.pi**2 * 4 * beam_gauss_width**2)
 
-
-            # Model a power-law with a constant modififed by the PSF response
-            def powerlaw_model_wbeam(f, logA, ind, logB, pt_on=1.):
-                return (10**logA * f**-ind + 10**logB * pt_on) * \
-                    beam_model(f)
-
-            # Try a pymc model to fit
-
-            ntune = 2000
             nsamp = 6000
 
-            with pm.Model() as model:
+            out, summ, trace, fit_model = fit_pspec_model(freqs, ps1D,
+                                                          ps1D_stddev,
+                                                          beam_model=beam_model,
+                                                          nsamp=nsamp)
 
-                logA = pm.Uniform('logA', -20., 20.)
-                ind = pm.Uniform('index', 0.0, 10.)
-                logB = pm.Uniform('logB', -20., 20.)
-
-                ps_vals = pm.Normal('obs',
-                                    powerlaw_model_wbeam(freqs, logA, ind, logB),
-                                    sd=ps1D_stddev,
-                                    observed=ps1D)
-
-                # step = pm.Slice()
-                # step2 = pm.Metropolis([logA, ind, logB])
-                # step = pm.NUTS()
-                step = pm.SMC()
-
-                trace = pm.sample(nsamp, tune=ntune, step=step,
-                                  progressbar=True,
-                                  cores=ncores)
-
-            summ = pm.summary(trace)
-
-            out = [np.array(summ['mean']), np.array(summ['sd'])]
-
-            row_names.append("{0}_{1}_{2}".format(gal.lower(), name, res_type))
+            row_names.append("{0}_{1}_{2}_{3}".format(gal.lower(),
+                                                      name, res_type,
+                                                      slice_name))
 
             fit_results['logA'].append(np.array(summ['mean'])[0])
             fit_results['ind'].append(np.array(summ['mean'])[1])
@@ -245,17 +222,10 @@ if do_fit_pspec:
 
             beam_amp = 10**(max(out[0][0], out[0][2]) - 1.)
 
-            if res_type == 'orig':
-                plt.loglog(freqs, powerlaw_model_wbeam(freqs, *out[0]), 'r--',
-                           linewidth=3, label='Fit')
-                plt.loglog(freqs,
-                           beam_amp * beam_model(freqs), 'r:', label='PSF')
-            else:
-                plt.loglog(freqs, powerlaw_model_wbeam(freqs, *out[0]).eval(), 'r--',
-                           linewidth=3, label='Fit')
-                plt.loglog(freqs,
-                           beam_amp * beam_model(freqs).eval(), 'r:',
-                           label='PSF')
+            plt.loglog(freqs, fit_model(freqs, *out[0]), 'r--',
+                       linewidth=3, label='Fit')
+            plt.loglog(freqs,
+                       beam_amp * beam_model(freqs), 'r:', label='PSF')
 
             plt.xlabel("Freq. (1 / pix)")
 
@@ -273,16 +243,9 @@ if do_fit_pspec:
 
                 pars = np.array([logA, ind, logB])
 
-                if res_type == 'orig':
-
-                    plt.loglog(freqs, powerlaw_model_wbeam(freqs, *pars),
-                               color='gray', alpha=0.7,
-                               linewidth=3, zorder=-1)
-                else:
-                    plt.loglog(freqs,
-                               powerlaw_model_wbeam(freqs, *pars).eval(),
-                               color='gray', alpha=0.7,
-                               linewidth=3, zorder=-1)
+                plt.loglog(freqs, fit_model(freqs, *pars),
+                           color='gray', alpha=0.7,
+                           linewidth=3, zorder=-1)
 
             plt.axvline(1 / beam_size, linestyle=':', linewidth=4,
                         alpha=0.8, color='gray')
@@ -292,6 +255,15 @@ if do_fit_pspec:
             plt.subplot(122)
             plt.imshow(np.log10(pspec.ps2D), origin='lower')
             plt.colorbar()
+
+            # Add contour showing region fit
+            yy_freq, xx_freq = make_radial_freq_arrays(pspec.ps2D.shape)
+
+            freqs_dist = np.sqrt(yy_freq**2 + xx_freq**2)
+
+            mask = freqs_dist <= high_cut
+
+            plt.contour(mask, colors=['k'], linestyles=['--'])
 
             plt.tight_layout()
 
@@ -333,25 +305,17 @@ if do_fit_pspec:
 
             phys_freqs = pspec._spatial_freq_unit_conversion(pspec.freqs, u.pc**-1).value
 
-            plt.loglog(phys_freqs, pspec.ps1D, 'k', zorder=-10)
+            phys_scales = 1 / phys_freqs
+
+            plt.loglog(phys_scales, pspec.ps1D, 'k', zorder=-10)
 
             beam_amp = 10**(max(out[0][0], out[0][2]) - 1.)
 
-            if res_type == 'orig':
-                plt.loglog(phys_freqs[fit_mask],
-                           powerlaw_model_wbeam(freqs, *out[0]), 'r--',
-                           linewidth=3, label='Fit')
-                plt.loglog(phys_freqs[fit_mask],
-                           beam_amp * beam_model(freqs), 'r:', label='PSF')
-            else:
-                plt.loglog(phys_freqs[fit_mask],
-                           powerlaw_model_wbeam(freqs, *out[0]).eval(), 'r--',
-                           linewidth=3, label='Fit')
-                plt.loglog(phys_freqs[fit_mask],
-                           beam_amp * beam_model(freqs).eval(), 'r:',
-                           label='PSF')
-
-            plt.xlabel(r"Freq. (pc$^{-1}$)")
+            plt.loglog(phys_scales[fit_mask],
+                       fit_model(freqs, *out[0]), 'r--',
+                       linewidth=3, label='Fit')
+            plt.loglog(phys_scales[fit_mask],
+                       beam_amp * beam_model(freqs), 'r:', label='PSF')
 
             plt.legend(frameon=True, loc='upper right')
 
@@ -367,24 +331,27 @@ if do_fit_pspec:
 
                 pars = np.array([logA, ind, logB])
 
-                if res_type == 'orig':
-
-                    plt.loglog(phys_freqs[fit_mask],
-                               powerlaw_model_wbeam(freqs, *pars),
-                               color='gray', alpha=0.7,
-                               linewidth=3, zorder=-1)
-                else:
-                    plt.loglog(phys_freqs[fit_mask],
-                               powerlaw_model_wbeam(freqs, *pars).eval(),
-                               color='gray', alpha=0.7,
-                               linewidth=3, zorder=-1)
+                plt.loglog(phys_scales[fit_mask],
+                           fit_model(freqs, *pars),
+                           color='gray', alpha=0.25,
+                           linewidth=3, zorder=-1)
 
             phys_beam = pspec._spatial_freq_unit_conversion(1 / (beam_size * u.pix), u.pc**-1).value
 
-            plt.axvline(phys_beam, linestyle=':', linewidth=4,
+            plt.axvline(1 / phys_beam, linestyle=':', linewidth=4,
                         alpha=0.8, color='gray')
+            # plt.axvline(1 / beam_gauss_width)
 
             plt.grid()
+
+            # switch labels to spatial scale rather than frequency
+            # ax1 = plt.gca()
+            # ax1Xs = [r"$10^{}$".format(int(-ind)) for ind in np.log10(ax1.get_xticks())]
+            # ax1.set_xticklabels(ax1Xs)
+
+            plt.xlabel(r"Scale (pc)")
+
+            plt.gca().invert_xaxis()
 
             plt.tight_layout()
 
@@ -396,4 +363,4 @@ if do_fit_pspec:
             plt.close()
 
         df = pd.DataFrame(fit_results, index=row_names)
-        df.to_csv(os.path.expanduser("~/tycho/Utomo19_LGdust/pspec_lmc_mip24_30dorcomparison_fit_results.csv"))
+        df.to_csv(osjoin(data_path, "pspec_lmc_mip24_30dorcomparison_fit_results.csv"))
