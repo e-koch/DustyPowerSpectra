@@ -18,6 +18,7 @@ from radio_beam import Beam
 import pymc3 as pm
 import pandas as pd
 from spectral_cube import Projection
+from matplotlib.ticker import MaxNLocator
 
 osjoin = os.path.join
 
@@ -25,7 +26,7 @@ from turbustat.statistics import PowerSpectrum
 from turbustat.statistics.psds import make_radial_freq_arrays
 
 
-repo_path = os.path.expanduser("~/ownCloud/code_development/DustyPowerSpectra/")
+repo_path = os.path.expanduser("~/ownCloud/project_code/DustyPowerSpectra/")
 code_name = os.path.join(repo_path, "models.py")
 exec(compile(open(code_name, "rb").read(), code_name, 'exec'))
 
@@ -73,7 +74,8 @@ for band in bands:
 
     for res_type in resolutions:
 
-        fig, axs = plt.subplots(4, 2, sharex=True, sharey=False)
+        fig, axs = plt.subplots(4, 2, sharex=True, sharey=False,
+                                figsize=(8.4, 7.))
 
         for i, (gal, ax) in enumerate(zip(gals, axs)):
 
@@ -117,11 +119,19 @@ for band in bands:
             phys_scales = 1 / phys_freqs
 
             # One side only shows the power-spectrum
-            ax[0].loglog(phys_scales, pspec.ps1D, 'k', zorder=-10)
+            ax[0].plot(np.log10(phys_scales), np.log10(pspec.ps1D), 'k')
+
+            yerr = 0.434 * pspec.ps1D_stddev / pspec.ps1D
+            ax[0].fill_between(np.log10(phys_scales),
+                               np.log10(pspec.ps1D) - yerr,
+                               y2=np.log10(pspec.ps1D) + yerr,
+                               color='k',
+                               alpha=0.3)
+
             # And the beam
             phys_beam = pspec._spatial_freq_unit_conversion(1 / (beam_size * u.pix), u.pc**-1).value
 
-            ax[0].axvline(1 / phys_beam, linestyle=':', linewidth=4,
+            ax[0].axvline(np.log10(1 / phys_beam), linestyle=':', linewidth=4,
                           alpha=0.8, color='gray')
 
             # And the PSF shape
@@ -140,11 +150,12 @@ for band in bands:
                 def beam_model(f):
                     return gaussian_beam(f, beam_gauss_width)
 
-            beam_amp = 10**(max(fit_params.logA, fit_params.logB) - 1.)
+            beam_amp = 10**(max(fit_params.logA, fit_params.logB) - 0.75)
 
-            ax[0].loglog(phys_scales[pspec.freqs.value < (1 / (beam_gauss_width * 3.))],
-                         beam_amp * beam_model(beam_freqs), 'r:',
-                         linewidth=2)
+            ax[0].plot(np.log10(phys_scales[pspec.freqs.value < (1 / (beam_gauss_width * 3.))]),
+                       np.log10(beam_amp * beam_model(beam_freqs)),
+                       'r-.',
+                       linewidth=2)
 
             # Invert once b/c all x-axes are the same
             if i == 0:
@@ -153,20 +164,34 @@ for band in bands:
 
             # Galaxy label
             ax[0].text(0.95, 0.85, gal, size=12,
-                       bbox={"boxstyle": "round", "facecolor": "w", 'edgecolor': 'gray'},
+                       bbox={"boxstyle": "round", "facecolor": "w",
+                             'edgecolor': 'gray'},
                        transform=ax[0].transAxes,
                        verticalalignment='top',
                        horizontalalignment='right')
 
             # Give band and resolution
             if i == 0:
-                ax[0].text(0.05, 0.15, f"{bands[band]}\n{resolutions[res_type]}",
+                ax[0].text(0.05, 0.15,
+                           f"{bands[band]}\n{resolutions[res_type]}",
                            size=12,
                            bbox={"boxstyle": "round", "facecolor": "w",
                                  'edgecolor': 'gray'},
                            transform=ax[0].transAxes,
                            verticalalignment='bottom',
                            horizontalalignment='left')
+
+            ymin = min(np.log10(beam_amp * beam_model(np.array([1 / (1.5 * beam_size)]))),
+                       np.log10(pspec.ps1D[np.argmin(np.abs(freqs - 1 / (1.5 * beam_size)))]))
+
+            ymax = np.max(np.log10(pspec.ps1D) + yerr)
+
+            yrange = ymax - ymin
+
+            ax[0].set_ylim(ymin - 0.05 * yrange,
+                           ymax + 0.05 * yrange)
+
+            ax[0].yaxis.set_major_locator(MaxNLocator(5, integer=True))
 
             # Second plot shows the power-spectrum with the model.
 
@@ -176,21 +201,26 @@ for band in bands:
             else:
                 fit_model = lambda f, args: powerlaw_model(f, *args)
 
-            ax[1].loglog(phys_scales, pspec.ps1D, 'k', zorder=-10)
+            ax[1].plot(np.log10(phys_scales), np.log10(pspec.ps1D),
+                       'k', zorder=-10)
 
-            ax[1].loglog(phys_scales[fit_mask],
-                         fit_model(freqs, [fit_params.logA, fit_params.ind,
-                                           fit_params.logB]), 'r--',
-                         linewidth=3, label='Fit')
-            ax[1].loglog(phys_scales[pspec.freqs.value < (1 / (beam_gauss_width * 3.))],
-                         beam_amp * beam_model(beam_freqs), 'r:', label='PSF',
-                         linewidth=2)
+            ax[1].plot(np.log10(phys_scales[fit_mask]),
+                       np.log10(fit_model(freqs, [fit_params.logA,
+                                                  fit_params.ind,
+                                                  fit_params.logB])),
+                       'r--',
+                       linewidth=3, label='Fit')
+            ax[1].plot(np.log10(phys_scales[pspec.freqs.value < (1 / (beam_gauss_width * 3.))]),
+                       np.log10(beam_amp * beam_model(beam_freqs)),
+                       'r-.', label='PSF',
+                       linewidth=2)
 
             # Just one legend
             if i == 0:
                 ax[1].legend(frameon=True, loc='center left')
 
-            ax[1].axvline(1 / phys_beam, linestyle=':', linewidth=4,
+            ax[1].axvline(np.log10(1 / phys_beam),
+                          linestyle=':', linewidth=4,
                           alpha=0.8, color='gray')
 
             # Also plot a set of 10 random parameter draws
@@ -202,13 +232,10 @@ for band in bands:
             rand_pars = np.load(randfilename)
             for pars in rand_pars:
 
-                ax[1].loglog(phys_scales[fit_mask],
-                             fit_model(freqs, pars),
-                             color='gray', alpha=0.25,
-                             linewidth=3, zorder=-1)
-
-            ax[1].axvline(1 / phys_beam, linestyle=':', linewidth=4,
-                          alpha=0.8, color='gray')
+                ax[1].plot(np.log10(phys_scales[fit_mask]),
+                           np.log10(fit_model(freqs, pars)),
+                           color='gray', alpha=0.25,
+                           linewidth=3, zorder=-1)
 
             ax[1].grid()
 
@@ -216,9 +243,22 @@ for band in bands:
             ax[1].set_yticklabels([])
             ax[1].set_ylim(*ax[0].get_ylim())
 
-        fig.text(0.5, 0.04, 'Scale (pc)', ha='center', va='center')
-        fig.subplots_adjust(left=None, bottom=None,
-                            right=None, top=None,
+        axs[-1][0].xaxis.set_major_locator(MaxNLocator(5, integer=True))
+
+        # Force draw to get the tick locations set
+        fig.canvas.draw()
+
+        for i, ax in enumerate(axs):
+            ax[0].set_yticklabels([r"$10^{{{}}}$".format(ylab.get_text().strip("$"))
+                                   for ylab in ax[0].get_yticklabels()])
+
+        axs[-1][0].set_xticklabels([r"$10^{{{}}}$".format(xlab.get_text().strip("$"))
+                                    for xlab in axs[-1][0].get_xticklabels()])
+
+        fig.text(0.53, 0.02, 'Scale (pc)', ha='center', va='center')
+        fig.text(0.02, 0.53, 'Power', ha='center', va='center', rotation=90)
+        fig.subplots_adjust(left=0.08, bottom=0.08,
+                            right=0.98, top=0.98,
                             wspace=0.01, hspace=0.05)
 
         fig.savefig(osjoin(plot_folder, f"all_1Dpspec_{band}_{res_type}.png"))
@@ -233,7 +273,7 @@ for band in bands:
 
 df = pd.read_csv(osjoin(data_path, "pspec_coldens_fit_results.csv"), index_col=0)
 
-fig, axs = plt.subplots(4, 2, sharex=True, sharey=False)
+fig, axs = plt.subplots(4, 2, sharex=True, sharey=False, figsize=(8.4, 7.))
 
 for i, (gal, ax) in enumerate(zip(gals, axs)):
 
@@ -265,21 +305,38 @@ for i, (gal, ax) in enumerate(zip(gals, axs)):
     phys_scales = 1 / phys_freqs
 
     # One side only shows the power-spectrum
-    ax[0].loglog(phys_scales, pspec.ps1D, 'k', zorder=-10)
+
+    ax[0].plot(np.log10(phys_scales), np.log10(pspec.ps1D), 'k')
+
+    yerr = 0.434 * pspec.ps1D_stddev / pspec.ps1D
+    ax[0].fill_between(np.log10(phys_scales),
+                       np.log10(pspec.ps1D) - yerr,
+                       y2=np.log10(pspec.ps1D) + yerr,
+                       color='k',
+                       alpha=0.3)
+
     # And the beam
     phys_beam = pspec._spatial_freq_unit_conversion(1 / (beam_size * u.pix), u.pc**-1).value
 
-    ax[0].axvline(1 / phys_beam, linestyle=':', linewidth=4,
+    ax[0].axvline(np.log10(1 / phys_beam), linestyle=':', linewidth=4,
                   alpha=0.8, color='gray')
 
     def beam_model(f):
         return gaussian_beam(f, beam_gauss_width)
 
-    beam_amp = 10**(max(fit_params.logA, fit_params.logB) - 1.)
+    beam_amp = 10**(max(fit_params.logA, fit_params.logB) - 0.75)
 
-    ax[0].loglog(phys_scales[fit_mask],
-                 beam_amp * beam_model(beam_freqs), 'r:',
-                 linewidth=2)
+    ax[0].plot(np.log10(phys_scales[fit_mask]),
+               np.log10(beam_amp * beam_model(beam_freqs)), 'r-.',
+               linewidth=2)
+
+    ymin = min(np.log10(beam_amp * beam_model(np.array([1 / beam_size]))),
+               np.log10(pspec.ps1D[np.argmin(np.abs(freqs - 1 / beam_size))]))
+
+    ax[0].set_ylim(ymin,
+                   np.max(np.log10(pspec.ps1D) + yerr) + 0.5)
+
+    ax[0].yaxis.set_major_locator(MaxNLocator(5, integer=True))
 
     # Invert once b/c all x-axes are the same
     if i == 0:
@@ -288,7 +345,8 @@ for i, (gal, ax) in enumerate(zip(gals, axs)):
 
     # Galaxy label
     ax[0].text(0.95, 0.85, gal, size=12,
-               bbox={"boxstyle": "round", "facecolor": "w", 'edgecolor': 'gray'},
+               bbox={"boxstyle": "round", "facecolor": "w",
+                     'edgecolor': 'gray'},
                transform=ax[0].transAxes,
                verticalalignment='top',
                horizontalalignment='right')
@@ -308,22 +366,22 @@ for i, (gal, ax) in enumerate(zip(gals, axs)):
     # Check if the fit uses the PSF
     fit_model = lambda f, args: powerlaw_model(f, *args[:-1]) * beam_model(f) + 10**args[-1]
 
-    ax[1].loglog(phys_scales, pspec.ps1D, 'k', zorder=-10)
+    ax[1].plot(np.log10(phys_scales), np.log10(pspec.ps1D), 'k', zorder=-10)
 
-    ax[1].loglog(phys_scales[fit_mask],
-                 fit_model(freqs, [fit_params.logA, fit_params.ind,
-                                   fit_params.logB, fit_params.logC]),
-                 'r--',
-                 linewidth=3, label='Fit')
-    ax[1].loglog(phys_scales[fit_mask],
-                 beam_amp * beam_model(beam_freqs), 'r:', label='PSF',
-                 linewidth=2)
+    ax[1].plot(np.log10(phys_scales[fit_mask]),
+               np.log10(fit_model(freqs, [fit_params.logA, fit_params.ind,
+                                          fit_params.logB, fit_params.logC])),
+               'r--',
+               linewidth=3, label='Fit')
+    ax[1].plot(np.log10(phys_scales[fit_mask]),
+               np.log10(beam_amp * beam_model(beam_freqs)), 'r-.', label='PSF',
+               linewidth=2)
 
     # Just one legend
     if i == 0:
         ax[1].legend(frameon=True, loc='center left')
 
-    ax[1].axvline(1 / phys_beam, linestyle=':', linewidth=4,
+    ax[1].axvline(np.log10(1 / phys_beam), linestyle=':', linewidth=4,
                   alpha=0.8, color='gray')
 
     # Also plot a set of 10 random parameter draws
@@ -335,12 +393,12 @@ for i, (gal, ax) in enumerate(zip(gals, axs)):
     rand_pars = np.load(randfilename)
     for pars in rand_pars:
 
-        ax[1].loglog(phys_scales[fit_mask],
-                     fit_model(freqs, pars),
-                     color='gray', alpha=0.25,
-                     linewidth=3, zorder=-1)
+        ax[1].plot(np.log10(phys_scales[fit_mask]),
+                   np.log10(fit_model(freqs, pars)),
+                   color='gray', alpha=0.25,
+                   linewidth=3, zorder=-1)
 
-    ax[1].axvline(1 / phys_beam, linestyle=':', linewidth=4,
+    ax[1].axvline(np.log10(1 / phys_beam), linestyle=':', linewidth=4,
                   alpha=0.8, color='gray')
 
     ax[1].grid()
@@ -349,9 +407,30 @@ for i, (gal, ax) in enumerate(zip(gals, axs)):
     ax[1].set_yticklabels([])
     ax[1].set_ylim(*ax[0].get_ylim())
 
-fig.text(0.5, 0.04, 'Scale (pc)', ha='center', va='center')
-fig.subplots_adjust(left=None, bottom=None,
-                    right=None, top=None,
+
+axs[-1][0].xaxis.set_major_locator(MaxNLocator(4, integer=True))
+
+# Force draw to get the tick locations set
+fig.canvas.draw()
+
+for ax in axs:
+    ax[0].set_yticklabels([r"$10^{{{}}}$".format(ylab.get_text().strip("$"))
+                           for ylab in ax[0].get_yticklabels()])
+
+
+fig.canvas.draw()
+
+# Having trouble doing this in scripted environment. Do it interactively.
+# input("Go to script and past in tick label change.")
+
+axs[-1][0].set_xticklabels([r"$10^{{{}}}$".format(xlab.get_text().strip("$"))
+                            for xlab in axs[-1][0].get_xticklabels()])
+
+
+fig.text(0.53, 0.02, 'Scale (pc)', ha='center', va='center')
+fig.text(0.02, 0.53, 'Power', ha='center', va='center', rotation=90)
+fig.subplots_adjust(left=0.08, bottom=0.08,
+                    right=0.98, top=0.98,
                     wspace=0.01, hspace=0.05)
 
 fig.savefig(osjoin(plot_folder, f"all_1Dpspec_coldens.png"))
