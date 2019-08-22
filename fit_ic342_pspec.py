@@ -1,12 +1,7 @@
 
 '''
-Compute the power-spectra for the Mag clouds, M31, and M33
-with the dust column density, and the individual IR maps.
-
-Fitting doesn't matter here. We'll save the classes to do
-a thorough job fitting later.
+Fit Herschel power spectra of IC342.
 '''
-
 
 import os
 from glob import glob
