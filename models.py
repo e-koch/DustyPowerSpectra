@@ -51,7 +51,7 @@ def make_psf_beam_function(kern_fpath):
 
 
 def fit_pspec_model(freqs, ps1D, ps1D_stddev, beam_model=None, ntune=2000,
-                    nsamp=6000, step=pm.SMC(parallel=False), cores=1,
+                    nsamp=6000, step=pm.SMC(), cores=1,
                     chains=100,
                     fixB=False, noise_term=False,
                     progressbar=True, return_model=False,):
@@ -125,7 +125,7 @@ def fit_pspec_model(freqs, ps1D, ps1D_stddev, beam_model=None, ntune=2000,
 
 def fit_broken_pspec_model(freqs, ps1D, ps1D_stddev, beam_model=None,
                            ntune=2000, nsamp=6000,
-                           step=pm.SMC(parallel=False), cores=1,
+                           step=pm.SMC(), cores=1,
                            chains=100,
                            fixB=False, noise_term=False,
                            progressbar=True, return_model=False,):
@@ -161,7 +161,7 @@ def fit_broken_pspec_model(freqs, ps1D, ps1D_stddev, beam_model=None,
         ind1 = pm.Uniform('index1', 0.0, 10.)
 
         # logA = pm.Normal('logA', 0., 10.)
-        # ind1 = pm.Normal('index', 0.0, 3.)
+        # ind1 = pm.Normal('index1', 0.0, 3.)
         # if not fixB:
         #     logB = pm.Normal('logB', 0., 10.)
         # else:
