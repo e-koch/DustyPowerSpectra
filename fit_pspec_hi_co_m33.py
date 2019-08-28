@@ -54,9 +54,6 @@ co_proj[co_proj.value < 0.] = 0.
 # Now convolve to match the dust
 beam = Beam(41 * u.arcsec)
 
-gas_sd = gas_sd.convolve_to(beam)
-gas_sd[np.isnan(hi_proj)] = np.NaN
-
 do_makepspec = False
 do_fitpspec = False
 do_makepspec_doub_aco = False
@@ -69,6 +66,8 @@ if do_makepspec:
     pspec_name = osjoin(data_path, 'M33_CO', 'm33_hi_co_dustSD.pspec.pkl')
 
     gas_sd = hi_proj * hi_mass_conversion + co21_mass_conversion * co_proj
+    gas_sd = gas_sd.convolve_to(beam)
+    gas_sd[np.isnan(hi_proj)] = np.NaN
 
     pspec = PowerSpectrum(gas_sd, distance=840 * u.kpc)
 
@@ -154,6 +153,8 @@ if do_makepspec_doub_aco:
     pspec_name = osjoin(data_path, 'M33_CO', 'm33_hi_co_dustSD.pspec_doub_aco.pkl')
 
     gas_sd = hi_proj * hi_mass_conversion + 2 * co21_mass_conversion * co_proj
+    gas_sd = gas_sd.convolve_to(beam)
+    gas_sd[np.isnan(hi_proj)] = np.NaN
 
     pspec = PowerSpectrum(gas_sd, distance=840 * u.kpc)
 
@@ -237,10 +238,12 @@ if do_fitpspec_doub_aco:
 
 if do_makepspec_co:
 
+    co_proj_smooth = co_proj.convolve_to(beam)
+
     pspec_name = osjoin(data_path, 'M33_CO', 'm33_co.pspec.pkl')
 
     # And with CO
-    pspec = PowerSpectrum(co_proj,
+    pspec = PowerSpectrum(co_proj_smooth,
                           distance=840 * u.kpc)
 
     pspec.run(verbose=False, fit_2D=False, high_cut=10**-1.3 / u.pix)
@@ -289,8 +292,8 @@ if do_fitpspec_co:
                         noise_term=noise_term)
 
     print(out)
-    # [array([ 5.77598225,  0.92436056, -6.53823495]),
-    # array([0.09811827, 0.06673945, 7.50089563])]
+    # [array([ 5.77492635,  0.92559964, -7.37473655]),
+    # array([0.09488236, 0.0655609 , 7.52016872])]
 
 
     tr_plot = pm.traceplot(trace)
