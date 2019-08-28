@@ -58,7 +58,7 @@ do_makepspec = False
 do_fitpspec = False
 do_makepspec_doub_aco = False
 do_fitpspec_doub_aco = False
-do_makepspec_co = False
+do_makepspec_co = True
 do_fitpspec_co = True
 
 if do_makepspec:
@@ -292,9 +292,8 @@ if do_fitpspec_co:
                         noise_term=noise_term)
 
     print(out)
-    # [array([ 5.77492635,  0.92559964, -7.37473655]),
-    # array([0.09488236, 0.0655609 , 7.52016872])]
-
+    # [array([ 5.78814085,  0.90661596, -4.73557772]),
+    # array([0.2697168 , 0.13992254, 7.57919797])]
 
     tr_plot = pm.traceplot(trace)
 
