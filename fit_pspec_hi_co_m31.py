@@ -39,6 +39,9 @@ hi_name = osjoin(data_path, "M31_HI",
 co_name = osjoin(data_path, "M31_CO",
                  "m31_iram_Kkms.fits")
 
+dust_name = osjoin(data_path, "M31",
+                   r"m31_dust.surface.density_FB.beta=1.8_gauss46.3_regrid_bksub.fits")
+
 co10_mass_conversion = 4.8 * (u.Msun / u.pc ** 2) / (u.K * u.km / u.s)
 
 # Note that the top two conversions contain a 1.4x correction for He.
@@ -55,12 +58,38 @@ co_proj = co_proj.convolve_to(hi_proj.beam)
 
 co_proj = co_proj.reproject(hi_proj.header)
 
+hdu_dust = fits.open(dust_name)
+
+# The edges of the maps have high uncertainty. For M31, this may be altering
+# the shape of the power-spectrum. Try removing these edges:
+dust_mask = np.isfinite(hdu_dust[0].data[0].squeeze())
+
+dust_mask = nd.binary_erosion(dust_mask,
+                              structure=np.ones((3, 3)),
+                              iterations=8)
+
+# Get minimal size
+masked_data = hdu_dust[0].data[0].squeeze()
+masked_data[~dust_mask] = np.NaN
+proj_dust = Projection.from_hdu(fits.PrimaryHDU(masked_data,
+                                                hdu_dust[0].header))
+
+proj_dust = proj_dust[nd.find_objects(dust_mask)[0]]
+
+proj_dust = proj_dust.with_beam(Beam(46.3 * u.arcsec))
+proj_dust = proj_dust.convolve_to(hi_proj.beam)
+
+
 do_makepspec = False
 do_fitpspec = False
 do_makepspec_doub_aco = False
 do_fitpspec_doub_aco = False
-do_makepspec_co = True
-do_fitpspec_co = True
+
+do_makepspec_co = False
+do_fitpspec_co = False
+
+do_makepspec_dust_smooth = False
+do_fitpspec_dust_smooth = True
 
 if do_makepspec:
 
@@ -207,8 +236,6 @@ if do_fitpspec_doub_aco:
     # [array([ 6.20749931,  2.11465308, -4.43332322]),
     # array([0.12928604, 0.09980371, 7.56877381])]
 
-
-
     tr_plot = pm.traceplot(trace)
 
     corn_plot = pm.pairplot(trace)
@@ -294,6 +321,92 @@ if do_fitpspec_co:
     # [array([ 4.6017837 ,  1.58634644, -7.41798926]),
     # array([0.10044863, 0.07508173, 7.19343479])]
 
+
+    tr_plot = pm.traceplot(trace)
+
+    corn_plot = pm.pairplot(trace)
+
+    fig = plt.figure(figsize=(4.2, 2.9))
+
+    phys_freqs = pspec._spatial_freq_unit_conversion(pspec.freqs, u.pc**-1).value
+
+    phys_scales = 1 / phys_freqs
+
+    # Saturated HI pspec w/fit
+    ax = fig.add_subplot(111)
+
+    ax.loglog(phys_scales, pspec.ps1D, 'k', zorder=-10)
+
+    beam_amp = 10**(max(out[0][0],
+                        out[0][2]) - 1.)
+
+    ax.loglog(phys_scales[fit_mask],
+              fit_model(freqs, *out[0]), 'r--',
+              linewidth=3, label='Fit')
+    ax.loglog(phys_scales[fit_mask],
+              beam_amp * beam_model(freqs), 'r:', label='PSF')
+
+    ax.legend(frameon=True, loc='upper right')
+
+    ax.invert_xaxis()
+
+if do_makepspec_dust_smooth:
+
+    pspec_name = osjoin(data_path, 'M31', 'm31_dust_hi_match.pspec.pkl')
+
+    # And with CO
+    pspec = PowerSpectrum(proj_dust,
+                          distance=720 * u.kpc)
+
+    pspec.run(verbose=False, fit_2D=False, high_cut=10**-1.3 / u.pix)
+    # pspec.plot_fit()
+
+    pspec.save_results(pspec_name)
+
+if do_fitpspec_dust_smooth:
+
+    pspec_name = osjoin(data_path, 'M31', 'm31_dust_hi_match.pspec.pkl')
+
+    pspec = PowerSpectrum.load_results(pspec_name)
+    pspec.load_beam()
+
+    beam_size = pspec._beam.major.to(u.deg) / pspec._ang_size.to(u.deg)
+    beam_size = beam_size.value
+    beam_gauss_width = beam_size / np.sqrt(8 * np.log(2))
+
+    # high_cut = (1 / (beam_gauss_width * 3.))
+    high_cut = (1 / (beam_gauss_width))
+
+    fit_mask = pspec.freqs.value < high_cut
+
+    # And cut out the largest scales due to expected deviations with
+    # small stddev
+    fit_mask[:2] = False
+
+    freqs = pspec.freqs.value[fit_mask]
+    ps1D = pspec.ps1D[fit_mask]
+    ps1D_stddev = pspec.ps1D_stddev[fit_mask]
+
+    def beam_model(f):
+        return gaussian_beam(f, beam_gauss_width)
+
+    nsamp = 6000
+
+    fixB = False
+
+    noise_term = True
+
+    out, summ, trace, fit_model = \
+        fit_pspec_model(freqs, ps1D,
+                        ps1D_stddev,
+                        beam_model=beam_model,
+                        nsamp=nsamp,
+                        fixB=fixB,
+                        noise_term=noise_term)
+
+    print(out)
+    # [array([ 0.16459228,  2.44221039, -9.19495691, -0.58251805]),
+    # array([0.14897565, 0.14858966, 5.4058104 , 0.11926214])]
 
     tr_plot = pm.traceplot(trace)
 
