@@ -28,7 +28,7 @@ from turbustat.statistics.psds import make_radial_freq_arrays
 
 
 # Load model functions
-repo_path = os.path.expanduser("~/ownCloud/code_development/DustyPowerSpectra/")
+repo_path = os.path.expanduser("~/ownCloud/project_code/DustyPowerSpectra/")
 code_name = os.path.join(repo_path, "models.py")
 exec(compile(open(code_name, "rb").read(), code_name, 'exec'))
 
@@ -75,6 +75,7 @@ for gal, dist in zip(gals, distances):
     if not os.path.exists(plot_folder):
         os.mkdir(plot_folder)
 
+    # for i, name in enumerate(fitinfo_dict[gal]):
     for name in fitinfo_dict[gal]:
 
         print("On {}".format(name))
@@ -230,6 +231,7 @@ for gal, dist in zip(gals, distances):
             tr_plot = pm.traceplot(trace_brok)
             plot_savename = osjoin(plot_folder, "{0}.brok_pspec_traceplot.pdf".format(filename.rstrip(".fits")))
             plt.savefig(plot_savename)
+            plt.close()
 
             tr_plot = pm.traceplot(trace)
             plot_savename = osjoin(plot_folder, "{0}.pspec_traceplot.pdf".format(filename.rstrip(".fits")))
@@ -262,13 +264,16 @@ for gal, dist in zip(gals, distances):
 
             # Append to dfs for all fits
             if not dfs_defined:
-                all_fit_params = all_params_df
+                all_fit_params = all_params_df.T
                 all_waic_compare = df_comp_WAIC
                 # Append in further iterations.
                 dfs_defined = True
             else:
-                all_fit_params = all_fit_params.append(all_params_df)
+                all_fit_params = all_fit_params.append(all_params_df.T)
                 all_waic_compare = all_waic_compare.append(df_comp_WAIC)
+
+            # print(all_fit_params)
+            # print(all_waic_compare)
 
             # Save traces
             # Remove old traces
