@@ -13,6 +13,7 @@ import astropy.units as u
 import matplotlib.pyplot as plt
 import seaborn as sb
 from radio_beam import Beam
+import skimage.morphology as mo
 
 import pymc3 as pm
 import pandas as pd
@@ -33,6 +34,7 @@ osjoin = os.path.join
 data_path = os.path.expanduser("~/bigdata/ekoch/IC342/")
 otherdata_path = os.path.expanduser("~/bigdata/ekoch/Utomo19_LGdust/")
 plot_path = os.path.expanduser("~/bigdata/ekoch/Utomo19_LGdust/IC342_plots")
+# plot_path = os.path.expanduser("~/bigdata/ekoch/Utomo19_LGdust/IC342_fullimg_plots")
 
 if not os.path.exists(plot_path):
     os.mkdir(plot_path)
@@ -49,6 +51,7 @@ if run_pspec:
 
     fitinfo_dict = dict()
 
+    # {'pacs100': {'beam': Beam(7.1 * u.arcsec), 'apod_kern': None,
     fitinfo_dict["IC342"] = \
         {'pacs100': {'beam': Beam(7.1 * u.arcsec), 'apod_kern': None,
                      'filename': "IC0342_scanamorphos_v16.9_pacs100_0.fits",
@@ -68,7 +71,7 @@ if run_pspec:
 
     ncores = 1
 
-    img_view = True
+    img_view = False
 
     skip_check = True
 
@@ -85,7 +88,10 @@ if run_pspec:
                                                        hdu_coldens[0].header))
 
     # Get minimal size
-    proj_coldens = proj_coldens[nd.find_objects(np.isfinite(proj_coldens))[0]]
+    coldens_mask = np.isfinite(proj_coldens)
+    coldens_mask = mo.remove_small_objects(coldens_mask, min_size=12)
+
+    proj_coldens = proj_coldens[nd.find_objects(coldens_mask)[0]]
 
     # Get spatial extents.
     # NOTE: extrema for 2D objects broken in spectral-cube! Need to fix...
@@ -137,7 +143,8 @@ if run_pspec:
             # Take minimal shape. Remove empty space.
             # Erode edges to avoid noisier region/uneven scans
             mask = np.isfinite(proj)
-            mask = nd.binary_erosion(mask, np.ones((3, 3)), iterations=8)
+            # mask = nd.binary_erosion(mask, np.ones((3, 3)), iterations=8)
+            mask = nd.binary_erosion(mask, np.ones((3, 3)), iterations=45)
 
             # Add radial box cut
             # radius = gal_cls.radius(header=proj.header).to(u.kpc)
@@ -149,6 +156,7 @@ if run_pspec:
             spat_mask = spat_mask_maker(*proj.spatial_coordinate_map)
 
             proj = proj[nd.find_objects(mask & spat_mask)[0]]
+            # proj = proj[nd.find_objects(mask)[0]]
 
             # Save the cut-out, if it doesn't already exist
             out_filename = "{}_cutout.fits".format(filename.rstrip(".fits"))
@@ -165,6 +173,7 @@ if run_pspec:
 
             if res_type == 'orig':
                 save_name = "{0}_{1}_mjysr.pspec.pkl".format(gal.lower(), name)
+                # save_name = "{0}_{1}_mjysr.pspec_fullimg.pkl".format(gal.lower(), name)
             else:
                 save_name = "{0}_{1}_{2}_mjysr.pspec.pkl".format(gal.lower(), name, res_type)
 
@@ -202,6 +211,7 @@ if run_pspec_psfs:
 
     fitinfo_dict = dict()
 
+    # {'pacs100': {'beam': Beam(7.1 * u.arcsec), 'apod_kern': None,
     fitinfo_dict["IC342"] = \
         {'pacs100': {'beam': Beam(7.1 * u.arcsec), 'apod_kern': None,
                      'filename': "IC0342_scanamorphos_v16.9_pacs100_0.fits",
@@ -219,6 +229,7 @@ if run_pspec_psfs:
                       'filename': "IC0342_kingfish_spire500_v3-0_scan.fits",
                       'low_int_cut': None, 'high_int_cut': None}}
 
+    # names = {'pacs100': ["PSF_PACS_100.fits", 0],
     names = {'pacs100': ["PSF_PACS_100.fits", 0],
              'pacs160': ["PSF_PACS_160.fits", 0],
              'spire250': ["PSF_SPIRE_250.fits", 1],
@@ -265,7 +276,14 @@ if run_pspec_psfs:
         # Normalize to make a kernel
         kernel /= kernel.sum()
 
-        kern_pspec = PowerSpectrum((kernel, kern_proj.header))
+        out_wcs = kern_proj.wcs.copy()
+        # Set new pixel scale
+        if hasattr(out_wcs.wcs, 'cd'):
+            out_wcs.wcs.cd = np.array([[-img_scale, 0.], [0., img_scale]])
+        else:
+            out_wcs.wcs.cdelt = np.array([-img_scale, img_scale])
+
+        kern_pspec = PowerSpectrum((kernel, out_wcs.to_header()))
         kern_pspec.run(verbose=False, fit_2D=False)
 
         save_name = "{0}_kernel_{1}.pspec.pkl".format(name, gal.lower())
@@ -313,6 +331,7 @@ if fit_pspec:
 
             if res_type == 'orig':
                 filename = "{0}_{1}_mjysr.pspec.pkl".format(gal.lower(), name)
+                # filename = "{0}_{1}_mjysr.pspec_fullimg.pkl".format(gal.lower(), name)
             else:
                 filename = "{0}_{1}_{2}_mjysr.pspec.pkl".format(gal.lower(), name, res_type)
 
@@ -378,6 +397,7 @@ if fit_pspec:
                 fit_pspec_model(freqs, ps1D,
                                 ps1D_stddev,
                                 beam_model=fit_beam_model,
+                                step=pm.SMC(),
                                 nsamp=nsamp,
                                 fixB=fitinfo_dict[gal][name]['fixB'])
 
@@ -450,6 +470,7 @@ if fit_pspec:
 
             plt.draw()
 
+            # plot_savename = osjoin(plot_path, "{0}.pspec_wbeam.png".format(filename.rstrip(".fits")))
             plot_savename = osjoin(plot_path, "{0}.pspec_wbeam.png".format(filename.rstrip(".fits")))
 
             print(plot_savename)
@@ -555,3 +576,4 @@ if fit_pspec:
 
     df = pd.DataFrame(fit_results, index=row_names)
     df.to_csv(os.path.join(data_path, "IC342_pspec_fit_results.csv"))
+    # df.to_csv(os.path.join(data_path, "IC342_pspec_fit_results_fullimg.csv"))
