@@ -69,10 +69,6 @@ co_pspec_name = osjoin(data_path, 'M31_CO', 'm31_co.pspec.pkl')
 co_pspec = PowerSpectrum.load_results(co_pspec_name)
 co_pspec.load_beam()
 
-dust_norm = dust_pspec.ps1D.max()
-hi_norm = hi_pspec.ps1D.max()
-co_norm = co_pspec.ps1D.max()
-
 ax = axs[0]
 
 gal = 'M31'
@@ -81,6 +77,8 @@ gal = 'M31'
 phys_freqs = co_pspec._spatial_freq_unit_conversion(co_pspec.freqs, u.pc**-1).value
 
 phys_scales = 1 / phys_freqs
+
+co_norm = co_pspec.ps1D[np.argmin(np.abs(phys_scales - 5.e2))]
 
 # One side only shows the power-spectrum
 ax.loglog(phys_scales, co_pspec.ps1D / co_norm, 'k:', zorder=-10, label='CO(1-0)')
@@ -94,6 +92,8 @@ phys_freqs = dust_pspec._spatial_freq_unit_conversion(dust_pspec.freqs, u.pc**-1
 
 phys_scales = 1 / phys_freqs
 
+dust_norm = dust_pspec.ps1D[np.argmin(np.abs(phys_scales - 5.e2))]
+
 # One side only shows the power-spectrum
 ax.loglog(phys_scales, dust_pspec.ps1D / dust_norm, 'k', zorder=-10, label='Dust')
 # And the beam
@@ -103,7 +103,7 @@ ax.axvline(1 / phys_beam, linestyle='-', linewidth=4,
            alpha=0.6, color='gray')
 
 # Add a label
-ax.text(1.1 / phys_beam, 1e-3, f"{int(round(1 / phys_beam))} pc", color='gray',
+ax.text(1.1 / phys_beam, 2e2, f"{int(round(1 / phys_beam))} pc", color='gray',
         rotation=90, horizontalalignment='right',
         size=13)
 
@@ -132,6 +132,8 @@ phys_freqs = hi_pspec._spatial_freq_unit_conversion(hi_pspec.freqs, u.pc**-1).va
 
 phys_scales = 1 / phys_freqs
 
+hi_norm = hi_pspec.ps1D[np.argmin(np.abs(phys_scales - 5.e2))]
+
 # One side only shows the power-spectrum
 ax.loglog(phys_scales, hi_pspec.ps1D / hi_norm, 'k--', zorder=-10, label=r'{\sc HI}')
 
@@ -139,7 +141,7 @@ def beam_model(f):
     return gaussian_beam(f, hi_beam_gauss_width)
 
 ax.loglog(phys_scales[fit_mask],
-          1e-6 * beam_model(freqs), 'r:', label='PSF',
+          1e-1 * beam_model(freqs), 'r:', label='PSF',
           linewidth=2)
 
 ax.text(0.95, 0.95, gal, size=13,
@@ -152,8 +154,7 @@ ax.text(0.95, 0.95, gal, size=13,
 # ax.invert_xaxis()
 ax.grid()
 
-ax.legend(frameon=True, loc='center left')
-
+ax.legend(frameon=True, loc='lower left')
 
 # M33
 
@@ -176,11 +177,6 @@ co_pspec_name = osjoin(data_path, 'M33_CO', 'm33_co.pspec.pkl')
 co_pspec = PowerSpectrum.load_results(co_pspec_name)
 co_pspec.load_beam()
 
-
-dust_norm = dust_pspec.ps1D.max()
-hi_norm = hi_pspec.ps1D.max()
-co_norm = co_pspec.ps1D.max()
-
 ax = axs[1]
 
 gal = 'M33'
@@ -189,6 +185,8 @@ gal = 'M33'
 phys_freqs = co_pspec._spatial_freq_unit_conversion(co_pspec.freqs, u.pc**-1).value
 
 phys_scales = 1 / phys_freqs
+
+co_norm = co_pspec.ps1D[np.argmin(np.abs(phys_scales - 5.e2))]
 
 # One side only shows the power-spectrum
 ax.loglog(phys_scales, co_pspec.ps1D / co_norm, 'k:', zorder=-10, label='CO(2-1)')
@@ -202,6 +200,8 @@ phys_freqs = dust_pspec._spatial_freq_unit_conversion(dust_pspec.freqs, u.pc**-1
 
 phys_scales = 1 / phys_freqs
 
+dust_norm = dust_pspec.ps1D[np.argmin(np.abs(phys_scales - 5.e2))]
+
 # One side only shows the power-spectrum
 ax.loglog(phys_scales, dust_pspec.ps1D / dust_norm, 'k', zorder=-10, label='Dust')
 # And the beam
@@ -210,7 +210,7 @@ phys_beam = dust_pspec._spatial_freq_unit_conversion(1 / (beam_size * u.pix), u.
 ax.axvline(1 / phys_beam, linestyle='-', linewidth=4,
            alpha=0.6, color='gray')
 # Add a label
-ax.text(1.1 / phys_beam, 1e-3, f"{int(round(1 / phys_beam))} pc", color='gray',
+ax.text(1.1 / phys_beam, 2e2, f"{int(round(1 / phys_beam))} pc", color='gray',
         rotation=90, horizontalalignment='right',
         size=13)
 
@@ -239,6 +239,8 @@ phys_freqs = hi_pspec._spatial_freq_unit_conversion(hi_pspec.freqs, u.pc**-1).va
 
 phys_scales = 1 / phys_freqs
 
+hi_norm = hi_pspec.ps1D[np.argmin(np.abs(phys_scales - 5.e2))]
+
 # One side only shows the power-spectrum
 ax.loglog(phys_scales, hi_pspec.ps1D / hi_norm, 'k--', zorder=-10, label=r'{\sc HI}')
 
@@ -246,7 +248,7 @@ def beam_model(f):
     return gaussian_beam(f, hi_beam_gauss_width)
 
 ax.loglog(phys_scales[fit_mask],
-          1e-6 * beam_model(freqs), 'r:', label='PSF',
+          1e-1 * beam_model(freqs), 'r:', label='PSF',
           linewidth=2)
 
 ax.text(0.95, 0.95, gal, size=13,
@@ -259,10 +261,10 @@ ax.text(0.95, 0.95, gal, size=13,
 # ax.invert_xaxis()
 ax.grid()
 
-ax.set_ylim([1e-8, 2])
+ax.set_ylim([1e-4, 8e5])
 ax.set_xlim([5e4, 100])
 
-ax.legend(frameon=True, loc='center left')
+ax.legend(frameon=True, loc='lower left')
 
 ax.set_xlabel("Scale (pc)")
 fig.text(0.04, 0.53, 'Normalized Power', ha='center', va='center', rotation=90)
