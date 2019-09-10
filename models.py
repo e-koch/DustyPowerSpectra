@@ -128,7 +128,8 @@ def fit_broken_pspec_model(freqs, ps1D, ps1D_stddev, beam_model=None,
                            step=pm.SMC(), cores=1,
                            chains=100,
                            fixB=False, noise_term=False,
-                           progressbar=True, return_model=False,):
+                           progressbar=True, return_model=False,
+                           trace_name=None):
 
     # https://docs.astropy.org/en/stable/api/astropy.modeling.powerlaws.SmoothlyBrokenPowerLaw1D.html
 
@@ -196,9 +197,13 @@ def fit_broken_pspec_model(freqs, ps1D, ps1D_stddev, beam_model=None,
         # step = pm.NUTS()
         # step = pm.SMC()
 
-        trace = pm.sample(nsamp, tune=ntune, step=step,
-                          progressbar=progressbar,
-                          cores=cores, chains=chains)
+        if trace_name is not None:
+            trace = pm.load_trace(trace_name)
+
+        else:
+            trace = pm.sample(nsamp, tune=ntune, step=step,
+                              progressbar=progressbar,
+                              cores=cores, chains=chains)
 
     summ = pm.summary(trace)
 
