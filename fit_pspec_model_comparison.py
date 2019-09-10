@@ -167,6 +167,27 @@ for gal, dist in zip(gals, distances):
                                        fixB=fitinfo_dict[gal][name]['fixB'],
                                        return_model=True)
 
+            # Save random samples from the broken plaw model
+            randints = np.random.randint(0, high=nsamp, size=10)
+
+            # Hang onto the random samples for the paper plots.
+            rand_pars = []
+
+            for rint in randints:
+                logA = trace_brok.get_values('logA')[rint]
+                ind1 = trace_brok.get_values('index1')[rint]
+                ind2 = trace_brok.get_values('index2')[rint]
+                break_f = trace_brok.get_values('break_f')[rint]
+
+                pars = np.array([logA, ind1, ind2, break_f])
+
+                rand_pars.append(pars)
+
+            # Save the random samples to a npy file
+            randfilename = osjoin(model_comparison_folder,
+                                  f"{filename}_param_samples.npy")
+            np.save(randfilename, np.array(rand_pars))
+
             # Model comparison via WAIC
             plaw_model.name = 'plaw'
             brok_plaw_model.name = 'brok_plaw'
