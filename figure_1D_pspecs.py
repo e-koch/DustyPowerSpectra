@@ -53,6 +53,9 @@ if not os.path.exists(plot_folder):
 
 df = pd.read_csv(osjoin(data_path, "pspec_fit_results.csv"), index_col=0)
 
+# Broken plaw fit params for MIPS 24
+df_bplaw = pd.read_csv(osjoin(data_path, 'model_comparison', "pspec_modecompare_fit_results.csv"), index_col=0)
+
 gals = {'LMC': 50.1 * u.kpc, 'SMC': 62.1 * u.kpc,
         'M31': 744 * u.kpc, 'M33': 840 * u.kpc}
 
@@ -79,7 +82,12 @@ for band in bands:
 
         for i, (gal, ax) in enumerate(zip(gals, axs)):
 
-            fit_params = df.loc[f"{gal.lower()}_{band}_{res_type}"]
+            # Use broken plaw for MIPS 24 LMC
+
+            if band == 'mips24' and gal == 'LMC':
+                fit_params = df_bplaw.loc[f"{gal.lower()}_{band}_{res_type}_mean"]
+            else:
+                fit_params = df.loc[f"{gal.lower()}_{band}_{res_type}"]
 
             if res_type == 'orig':
                 filename = "{0}_{1}_mjysr.pspec.pkl".format(gal.lower(), band)
@@ -150,7 +158,12 @@ for band in bands:
                 def beam_model(f):
                     return gaussian_beam(f, beam_gauss_width)
 
-            beam_amp = 10**(max(fit_params.logA, fit_params.logB) - 0.75)
+            try:
+                beam_amp = 10**(max(fit_params.logA, fit_params.logB) - 0.75)
+            except AttributeError:
+                beam_amp = 10**(max(fit_params.logA_plaw,
+                                    fit_params.logB_plaw) - 0.75)
+
 
             ax[0].plot(np.log10(phys_scales[pspec.freqs.value < (1 / (beam_gauss_width * 3.))]),
                        np.log10(beam_amp * beam_model(beam_freqs)),
@@ -197,19 +210,51 @@ for band in bands:
 
             # Check if the fit uses the PSF
             if fitinfo_dict[gal][band]['use_beam']:
-                fit_model = lambda f, args: powerlaw_model(f, *args) * beam_model(f)
+                # One case of the broken plaw model
+                if gal == 'LMC' and band == 'mips24':
+                    fit_model = lambda f, args: broken_powerlaw_model(f, *args) * beam_model(f)
+                else:
+                    fit_model = lambda f, args: powerlaw_model(f, *args) * beam_model(f)
             else:
                 fit_model = lambda f, args: powerlaw_model(f, *args)
 
             ax[1].plot(np.log10(phys_scales), np.log10(pspec.ps1D),
                        'k', zorder=-10)
 
-            ax[1].plot(np.log10(phys_scales[fit_mask]),
-                       np.log10(fit_model(freqs, [fit_params.logA,
-                                                  fit_params.ind,
-                                                  fit_params.logB])),
-                       'r--',
-                       linewidth=3, label='Fit')
+            if band == 'mips24' and gal == 'LMC':
+                # Broken plaw
+                print(fit_params)
+                ax[1].plot(np.log10(phys_scales[fit_mask]),
+                           np.log10(fit_model(freqs, [fit_params.logA_brokplaw,
+                                                      fit_params.index1_brokplaw,
+                                                      fit_params.index1_brokplaw + fit_params.index2_brokplaw,
+                                                      fit_params.break_f_brokplaw,
+                                                      ])),
+                           'r--',
+                           linewidth=3, label='Fit')
+
+                # Also indicate the break point
+                phys_break = pspec._spatial_freq_unit_conversion(fit_params.break_f_brokplaw / u.pix, u.pc**-1).value
+                ax[1].axvline(np.log10(1 / phys_break),
+                              linestyle=':', linewidth=3, alpha=0.7,
+                              color='gray')
+
+                ax[1].text(np.log10(1 / phys_break), 11,
+                           f"Break at\n{int(round(1 / phys_break))} pc",
+                           color='gray',
+                           rotation=90, horizontalalignment='right',
+                           verticalalignment='center',
+                           size=12)
+
+            else:
+
+                ax[1].plot(np.log10(phys_scales[fit_mask]),
+                           np.log10(fit_model(freqs, [fit_params.logA,
+                                                      fit_params.ind,
+                                                      fit_params.logB])),
+                           'r--',
+                           linewidth=3, label='Fit')
+
             ax[1].plot(np.log10(phys_scales[pspec.freqs.value < (1 / (beam_gauss_width * 3.))]),
                        np.log10(beam_amp * beam_model(beam_freqs)),
                        'r-.', label='PSF',
@@ -226,16 +271,38 @@ for band in bands:
             # Also plot a set of 10 random parameter draws
 
             # Get some random draws saved from the fits
-            randfilename = osjoin(data_path, gal.upper(),
-                                  f"{filename}_param_samples.npy")
+            if band == 'mips24' and gal == 'LMC':
+                # Load existing trace with model
+                randfilename = osjoin(data_path, 'model_comparison',
+                                      f"{filename}_param_samples.npy")
 
-            rand_pars = np.load(randfilename)
-            for pars in rand_pars:
+                rand_pars = np.load(randfilename)
 
-                ax[1].plot(np.log10(phys_scales[fit_mask]),
-                           np.log10(fit_model(freqs, pars)),
-                           color='gray', alpha=0.25,
-                           linewidth=3, zorder=-1)
+                # print(argh)
+
+                for pars in rand_pars:
+
+                    ax[1].plot(np.log10(phys_scales[fit_mask]),
+                               np.log10(fit_model(freqs,
+                                                  [pars[0],
+                                                   pars[1],
+                                                   pars[1] + pars[2],
+                                                   pars[3]])),
+                               color='gray', alpha=0.25,
+                               linewidth=3, zorder=-1)
+
+            else:
+
+                randfilename = osjoin(data_path, gal.upper(),
+                                      f"{filename}_param_samples.npy")
+
+                rand_pars = np.load(randfilename)
+                for pars in rand_pars:
+
+                    ax[1].plot(np.log10(phys_scales[fit_mask]),
+                               np.log10(fit_model(freqs, pars)),
+                               color='gray', alpha=0.25,
+                               linewidth=3, zorder=-1)
 
             ax[1].grid()
 
@@ -264,8 +331,9 @@ for band in bands:
         fig.savefig(osjoin(plot_folder, f"all_1Dpspec_{band}_{res_type}.png"))
         fig.savefig(osjoin(plot_folder, f"all_1Dpspec_{band}_{res_type}.pdf"))
 
-        # plt.draw()
-        # input(f"{band}?")
+        plt.draw()
+        input(f"{band}?")
+
         plt.close()
 
 

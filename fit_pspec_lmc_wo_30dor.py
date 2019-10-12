@@ -103,7 +103,7 @@ if do_run_pspec:
 if do_fit_pspec:
 
     # Load model functions
-    repo_path = os.path.expanduser("~/ownCloud/code_development/DustyPowerSpectra/")
+    repo_path = os.path.expanduser("~/ownCloud/project_code/DustyPowerSpectra/")
     code_name = os.path.join(repo_path, "models.py")
     exec(compile(open(code_name, "rb").read(), code_name, 'exec'))
 
@@ -112,8 +112,10 @@ if do_fit_pspec:
     if not os.path.exists(plot_folder):
         os.mkdir(plot_folder)
 
-    fit_results = {'logA': [], 'ind': [], 'logB': [],
-                   'logA_std': [], 'ind_std': [], 'logB_std': []}
+    fit_results = {'logA': [], 'ind': [], 'logB': [], 'ind2': [],
+                   'break_f': [],
+                   'logA_std': [], 'ind_std': [], 'logB_std': [],
+                   'ind2_std': [], 'break_f_std': []}
     row_names = []
 
     for res_type in res_types:
@@ -197,22 +199,53 @@ if do_fit_pspec:
 
             nsamp = 6000
 
-            out, summ, trace, fit_model = fit_pspec_model(freqs, ps1D,
-                                                          ps1D_stddev,
-                                                          beam_model=beam_model,
-                                                          nsamp=nsamp)
+            # Fit a broken plaw with 30 Dor
+
+            if slice_name == 'no30dor':
+
+                out, summ, trace, fit_model = \
+                    fit_pspec_model(freqs, ps1D,
+                                    ps1D_stddev,
+                                    beam_model=beam_model,
+                                    nsamp=nsamp)
+            else:
+                out, summ, trace, fit_model_func = \
+                    fit_broken_pspec_model(freqs, ps1D,
+                                           ps1D_stddev,
+                                           beam_model=beam_model,
+                                           nsamp=nsamp,
+                                           return_model=False)
 
             row_names.append("{0}_{1}_{2}_{3}".format(gal.lower(),
                                                       name, res_type,
                                                       slice_name))
 
-            fit_results['logA'].append(np.array(summ['mean'])[0])
-            fit_results['ind'].append(np.array(summ['mean'])[1])
-            fit_results['logB'].append(np.array(summ['mean'])[2])
 
-            fit_results['logA_std'].append(np.array(summ['sd'])[0])
-            fit_results['ind_std'].append(np.array(summ['sd'])[1])
-            fit_results['logB_std'].append(np.array(summ['sd'])[2])
+            fit_results['logA'].append(summ['mean'].loc['logA'])
+            fit_results['logB'].append(summ['mean'].loc['logB'])
+
+            fit_results['logA_std'].append(summ['sd'].loc['logA'])
+            fit_results['logB_std'].append(summ['sd'].loc['logB'])
+
+            if slice_name == 'no30dor':
+                fit_results['ind'].append(summ['mean'].loc['index'])
+                fit_results['ind_std'].append(summ['sd'].loc['index'])
+
+                fit_results['ind2'].append(np.NaN)
+                fit_results['ind2_std'].append(np.NaN)
+
+                fit_results['break_f'].append(np.NaN)
+                fit_results['break_f_std'].append(np.NaN)
+
+            else:
+                fit_results['ind'].append(summ['mean'].loc['index1'])
+                fit_results['ind_std'].append(summ['sd'].loc['index1'])
+
+                fit_results['ind2'].append(summ['mean'].loc['index2'])
+                fit_results['ind2_std'].append(summ['sd'].loc['index2'])
+
+                fit_results['break_f'].append(summ['mean'].loc['break_f'])
+                fit_results['break_f_std'].append(summ['sd'].loc['break_f'])
 
             plt.figure(figsize=(8.4, 2.9))
 
