@@ -192,9 +192,12 @@ for gal, dist in zip(gals, distances):
             plaw_model.name = 'plaw'
             brok_plaw_model.name = 'brok_plaw'
 
-            df_comp_WAIC = pm.compare({plaw_model: trace,
-                                       brok_plaw_model: trace_brok},
-                                      ic='WAIC')
+            # df_comp_WAIC = pm.compare({plaw_model: trace,
+            #                            brok_plaw_model: trace_brok},
+            #                           ic='WAIC')
+            df_comp_LOO = pm.compare({plaw_model: trace,
+                                      brok_plaw_model: trace_brok},
+                                     ic='LOO')
 
             plt.figure(figsize=(4.2, 4.2))
 
@@ -237,7 +240,8 @@ for gal, dist in zip(gals, distances):
 
             # Model comparison plot
             ax2 = plt.subplot(212)
-            pm.compareplot(df_comp_WAIC, ax=ax2)
+            # pm.compareplot(df_comp_WAIC, ax=ax2)
+            pm.compareplot(df_comp_LOO, ax=ax2)
 
             plt.tight_layout()
 
@@ -265,7 +269,8 @@ for gal, dist in zip(gals, distances):
             row_name = "{0}_{1}_{2}".format(gal.lower(), name, res_type)
 
             # Rename columns w/ row_name to append into one table
-            df_comp_WAIC.index = [f'{row_name}_{ind}' for ind in df_comp_WAIC.index]
+            # df_comp_WAIC.index = [f'{row_name}_{ind}' for ind in df_comp_WAIC.index]
+            df_comp_LOO.index = [f'{row_name}_{ind}' for ind in df_comp_LOO.index]
 
             # Combine into one table
             params_df = summ[['mean', 'sd']]
@@ -286,12 +291,14 @@ for gal, dist in zip(gals, distances):
             # Append to dfs for all fits
             if not dfs_defined:
                 all_fit_params = all_params_df.T
-                all_waic_compare = df_comp_WAIC
+                # all_waic_compare = df_comp_WAIC
+                all_loo_compare = df_comp_LOO
                 # Append in further iterations.
                 dfs_defined = True
             else:
                 all_fit_params = all_fit_params.append(all_params_df.T)
-                all_waic_compare = all_waic_compare.append(df_comp_WAIC)
+                # all_waic_compare = all_waic_compare.append(df_comp_WAIC)
+                all_loo_compare = all_loo_compare.append(df_comp_LOO)
 
             # print(all_fit_params)
             # print(all_waic_compare)
@@ -312,5 +319,6 @@ for gal, dist in zip(gals, distances):
 
 
 # Save the fit tables
-all_fit_params.to_csv(os.path.join(model_comparison_folder, "pspec_modecompare_fit_results.csv"))
-all_waic_compare.to_csv(os.path.join(model_comparison_folder, "pspec_modecompare_waic_results.csv"))
+# all_fit_params.to_csv(os.path.join(model_comparison_folder, "pspec_modecompare_fit_results.csv"))
+# all_waic_compare.to_csv(os.path.join(model_comparison_folder, "pspec_modecompare_waic_results.csv"))
+all_loo_compare.to_csv(os.path.join(model_comparison_folder, "pspec_modecompare_loo_results.csv"))
