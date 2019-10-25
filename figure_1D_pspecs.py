@@ -82,6 +82,9 @@ for band in bands:
 
         for i, (gal, ax) in enumerate(zip(gals, axs)):
 
+            # Tie y-axes in each row together
+            ax[0].get_shared_y_axes().join(ax[0], ax[1])
+
             # Use broken plaw for MIPS 24 LMC
 
             if band == 'mips24' and gal == 'LMC':
@@ -307,6 +310,7 @@ for band in bands:
             ax[1].grid()
 
             # Don't need y ticks here:
+            ax[1].set_yticks(ax[0].get_yticks())
             ax[1].set_yticklabels([])
             ax[1].set_ylim(*ax[0].get_ylim())
 
