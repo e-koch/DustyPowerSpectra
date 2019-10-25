@@ -476,6 +476,7 @@ for i, (gal, ax) in enumerate(zip(gals, axs)):
     ax[1].grid()
 
     # Don't need y ticks here:
+    ax[1].set_yticks(ax[0].get_yticks())
     ax[1].set_yticklabels([])
     ax[1].set_ylim(*ax[0].get_ylim())
 
