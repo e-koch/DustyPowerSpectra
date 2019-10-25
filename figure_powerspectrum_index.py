@@ -36,6 +36,12 @@ df = pd.read_csv(osjoin(data_path, "pspec_fit_results.csv"), index_col=0)
 df_coldens = pd.read_csv(osjoin(data_path, "pspec_coldens_fit_results.csv"),
                          index_col=0)
 
+# Broken plaw fit params for MIPS 24
+df_bplaw = pd.read_csv(osjoin(data_path, 'model_comparison',
+                              "pspec_modecompare_fit_results.csv"),
+                       index_col=0)
+
+
 gals = ['LMC', 'SMC', 'M31', 'M33']
 
 bands = ['MIPS 24', 'MIPS 70', 'PACS 100', 'MIPS 160', 'PACS 160',
@@ -45,24 +51,60 @@ labels = {'orig': "Original", 'mod': "Convolved"}
 
 fig, axs = plt.subplots(4, 1, sharex=True, sharey=True)
 
+col_pal = sb.color_palette()
+
 for i, gal in enumerate(gals):
 
     ax = axs[i]
 
     ax.text(-0.3, 2.3, gal, bbox={"boxstyle": "round", "facecolor": "w",
-                               "edgecolor": 'k'})
+                                  "edgecolor": 'k'})
 
     df_gal = df.loc[[ind for ind in df.index if gal.lower() in ind]]
     df_gal.index = [ind.replace("_", " ") for ind in df_gal.index]
 
+    df_gal_brok = df_bplaw.loc[[ind for ind in df_bplaw.index
+                                if gal.lower() in ind]]
+
     # Then split by orig and mod
 
-    for res_type in ['orig', 'mod']:
-        df_gal_res = df_gal.loc[[ind for ind in df_gal.index if res_type in ind]]
+    for j, res_type in enumerate(['orig', 'mod']):
+        df_gal_res = df_gal.loc[[ind for ind in df_gal.index
+                                 if res_type in ind]]
 
-        ax.errorbar(np.arange(8), df_gal_res.ind, yerr=df_gal_res.ind_std,
-                    linestyle='-' if res_type == 'orig' else '--',
-                    label=labels[res_type])
+        df_gal_brok_res = df_gal_brok.loc[[ind for ind in df_gal_brok.index
+                                           if res_type in ind]]
+
+        # Plot both plaws for LMC MIPS 24 um
+        if gal == 'LMC':
+            print(df_gal_brok_res.iloc[2*j].index1_brokplaw)
+            print(df_gal_brok_res.iloc[2*j].index2_brokplaw)
+            print(df_gal_brok_res.iloc[2*j+1].index1_brokplaw)
+            print(df_gal_brok_res.iloc[2*j+1].index2_brokplaw)
+
+            x_pos = -0.2 if j == 0 else 0.2
+
+            # MIPS 24um is up first
+            ax.errorbar([x_pos], df_gal_brok_res.iloc[2 * j].index1_brokplaw,
+                        yerr=df_gal_brok_res.iloc[2 * j + 1].index1_brokplaw,
+                        color=col_pal[j], marker='s')
+
+            ax.errorbar([x_pos], df_gal_brok_res.iloc[2 * j].index2_brokplaw,
+                        yerr=df_gal_brok_res.iloc[2 * j + 1].index2_brokplaw,
+                        color=col_pal[j], marker='D')
+
+            ax.errorbar(np.arange(1, 8), df_gal_res.ind[1:],
+                        yerr=df_gal_res.ind_std[1:],
+                        linestyle='-' if res_type == 'orig' else '--',
+                        label=labels[res_type],
+                        color=col_pal[j])
+
+        else:
+
+            ax.errorbar(np.arange(8), df_gal_res.ind, yerr=df_gal_res.ind_std,
+                        linestyle='-' if res_type == 'orig' else '--',
+                        label=labels[res_type],
+                        color=col_pal[j])
 
         # df_gal_res.ind.plot(ax=ax, label=labels[res_type],
         #                     yerr=df_gal_res.ind_std,
@@ -75,7 +117,8 @@ for i, gal in enumerate(gals):
     # And the dust SD
     ax.errorbar(8., df_coldens.ind[gal.lower()],
                 yerr=df_coldens.ind_std[gal.lower()],
-                marker='o')
+                marker='o',
+                color=col_pal[2])
 
 # Not working in loop?
 [ax.grid() for ax in axs]
@@ -88,7 +131,7 @@ plt.setp(axs[-1].xaxis.get_majorticklabels(), rotation=45,
 axs[-1].set_ylim([0.0, 3.0])
 axs[-1].set_xlim([-0.6, 8.6])
 
-fig.text(0.03, 0.5, r'Power-spectrum Index ($\beta$)',
+fig.text(0.03, 0.5, r'Power Spectrum Index ($\beta$)',
          ha='center', va='center', rotation='vertical')
 
 plt.subplots_adjust(bottom=0.13)
