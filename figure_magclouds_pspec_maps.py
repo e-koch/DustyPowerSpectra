@@ -113,7 +113,8 @@ for gal, ax in zip(fitinfo_dict, axes.ravel()):
 
     index_scatter = ax.scatter(df.x + x_diff_size, df.y + y_diff_size,
                                c=df.ind, cmap='viridis',
-                               vmin=0.8, vmax=2.9)
+                               vmin=1.25, vmax=2.75)
+                               # vmin=0.8, vmax=2.9)
 
     y_val_gal = 0.9 * proj_coldens_padded.shape[0]
 
